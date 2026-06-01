@@ -10,7 +10,7 @@ They should only be considered after successful completion of the MVP.
 
 ---
 
-## Future Research Directions
+# Future Research Directions
 
 ---
 

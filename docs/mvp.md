@@ -4,9 +4,7 @@
 
 The MVP represents the minimum set of features required for successful project completion.
 
----
-
-# Must Have Features
+## Must Have Features
 
 ## 1. Satellite Imagery Ingestion
 
@@ -101,7 +99,7 @@ Natural language questions such as:
 
 ---
 
-# Optional Features
+## Optional Features
 
 These features will only be attempted if the MVP is completed ahead of schedule.
 
@@ -119,9 +117,7 @@ These features will only be attempted if the MVP is completed ahead of schedule.
 - LiDAR experimentation
 - Notification system
 
----
-
-# Out of Scope
+## Out of Scope
 
 The following are explicitly excluded:
 
@@ -133,9 +129,7 @@ The following are explicitly excluded:
 - Nationwide scale processing
 - Complex MLOps platforms
 
----
-
-# MVP Success Criteria
+## MVP Success Criteria
 
 The MVP is considered successful if:
 

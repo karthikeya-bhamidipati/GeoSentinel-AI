@@ -167,6 +167,27 @@ Day 02 established the geospatial foundation required for:
 
 ---
 
+## Additional Research
+
+Started exploring TorchGeo documentation.
+
+Focused on:
+
+- Geospatial datasets
+- Raster datasets
+- Geospatial sampling
+- Data loading workflows
+
+Initial Understanding:
+
+TorchGeo extends PyTorch for geospatial machine learning and provides tools for handling satellite imagery, geospatial datasets, and remote sensing workflows.
+
+Potential Role In GeoSentinel:
+
+- Sentinel-2 dataset handling
+- Geospatial preprocessing
+- Training data preparation
+
 # Next Steps
 
 Day 03:

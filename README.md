@@ -91,6 +91,23 @@ GeoSentinel-AI/
 
 ---
 
+# Data Directory
+
+This folder contains local datasets used by GeoSentinel AI.
+
+Datasets are not tracked in Git.
+
+Structure:
+
+raw/
+Original downloads
+
+interim/
+Cleaned datasets
+
+processed/
+Analysis-ready datasets
+
 ## Current Status
 
 Project Phase:

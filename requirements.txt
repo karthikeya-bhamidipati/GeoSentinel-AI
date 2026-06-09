@@ -10,3 +10,4 @@ pyproj
 fiona
 scikit-image
 scikit-learn
+torchgeo

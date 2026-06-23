@@ -8,12 +8,7 @@ Status: Completed
 - Computed NDVI for 2026
 - Generated NDVI Change Map
 
-- Computed NDBI for 2021
-- Computed NDBI for 2026
-- Generated NDBI Change Map
-
 - Created Vegetation Loss Mask
-- Created Urban Growth Mask
 
 ## Project Impact
 

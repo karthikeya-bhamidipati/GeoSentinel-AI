@@ -1,136 +1,60 @@
 # GeoSentinel AI
 
-## AI-Powered Satellite Change Detection & Urban-Vegetation Risk Intelligence Platform
+GeoSentinel AI is a cloud-native geospatial analytics platform for urban expansion and vegetation dynamics monitoring in the Hyderabad Metropolitan Region (HMR) using Sentinel-2 imagery.
 
-GeoSentinel AI is a GeoAI platform designed to analyze multi-temporal satellite imagery and identify environmental and infrastructural changes over time.
+## Features
 
-The system combines remote sensing, computer vision, deep learning, geospatial analytics, RAG, and agentic workflows to generate actionable geospatial intelligence.
+- **Automated Data Acquisition**: Integration with Copernicus Data Space Ecosystem (CDSE) for automated Sentinel-2 L2A STAC searches and downloads.
+- **Robust Preprocessing**: Cloud masking (using SCL), atmospheric correction, sub-pixel alignment, and 10m resampling.
+- **Advanced AI Segmentation**: ResNet-backed U-Net and DeepLabV3+ architectures for semantic land cover classification across 6 classes (Urban, Vegetation, Water, Barren, Agriculture, Background).
+- **Temporal Analytics**: NDBI and NDVI change detection for monitoring urban expansion and vegetation health.
+- **Rule-Based Recommendations**: Deterministic, explainable recommendation engine triggering actionable insights without LLM hallucinations.
+- **Comprehensive Reporting**: Automatic generation of PDF reports, GeoJSON hotspots, GeoTIFF maps, and CSV statistics.
 
----
+## Tech Stack
 
-## Project Objectives
+- **Backend**: Python 3.11, FastAPI, PyTorch, Segmentation Models PyTorch, Rasterio, Shapely, ReportLab
+- **Frontend**: Next.js 14, React 18, TypeScript, Leaflet, Recharts
+- **Infrastructure**: Docker, Docker Compose, Nginx
 
-- Detect urban expansion
-- Detect vegetation loss
-- Analyze land-use changes
-- Generate risk intelligence reports
-- Provide an interactive geospatial dashboard
-- Support natural language geospatial querying
+## Getting Started
 
----
+### Prerequisites
 
-## Study Region
+- Docker and Docker Compose
+- Node.js (for local frontend development)
+- Python 3.11 (for local backend development)
 
-Hyderabad, Telangana, India
+### Environment Setup
 
----
+1. Copy `.env.example` to `.env` and fill in your Copernicus Data Space Ecosystem (CDSE) credentials:
+   ```bash
+   cp .env.example .env
+   ```
 
-## Core Technologies
+### Running with Docker
 
-### Geospatial
+Use Docker Compose to spin up the entire stack (Backend, Frontend, and Nginx reverse proxy):
 
-- Rasterio
-- GeoPandas
-- GDAL
-- QGIS
-
-### Computer Vision
-
-- OpenCV
-
-### Deep Learning
-
-- PyTorch
-
-### Backend
-
-- FastAPI
-
-### Frontend
-
-- React
-- Leaflet
-
-### AI Systems
-
-- LangChain
-- LangGraph
-- ChromaDB
-
-### Automation
-
-- Prefect
-
-### Deployment
-
-- Docker
-
----
-
-## Repository Structure
-
-```text
-GeoSentinel-AI/
-│
-├── backend/
-├── frontend/
-├── data/
-├── notebooks/
-├── models/
-├── reports/
-├── docs/
-├── assets/
-├── scripts/
-├── tests/
-├── docker/
-├── requirements/
-│
-├── README.md
-└── .gitignore
+```bash
+cd docker
+docker-compose up --build
 ```
 
----
+The application will be available at:
+- Frontend: `http://localhost:3000` or `http://localhost`
+- Backend API: `http://localhost/api/v1`
+- API Documentation: `http://localhost/api/docs`
 
-# Data Directory
+## Project Structure
 
-This folder contains local datasets used by GeoSentinel AI.
-
-Datasets are not tracked in Git.
-
-Structure:
-
-raw/
-Original downloads
-
-interim/
-Cleaned datasets
-
-processed/
-Analysis-ready datasets
-
-## Current Status
-
-Project Phase:
-
-Foundation & Planning
-
-Completed:
-
-- Project scope finalized
-- Repository initialized
-- Environment configured
-- Documentation created
-- MVP defined
-
-Upcoming:
-
-- Geospatial fundamentals
-- Satellite imagery exploration
-- GeoTIFF processing
-- NDVI implementation
-
----
+- `backend/`: FastAPI application, API routes, and async job queues
+- `frontend/`: Next.js React application and UI components
+- `src/`: Core Python modules for earth observation, AI modeling, temporal analytics, and reporting
+- `configs/`: YAML configuration files (rules, API settings, logging)
+- `data/`: Storage for reference boundaries, cached scenes, and output reports
+- `docker/`: Dockerfiles and docker-compose configurations
+- `docs/`: Master spec and research papers
 
 ## License
-
 MIT License

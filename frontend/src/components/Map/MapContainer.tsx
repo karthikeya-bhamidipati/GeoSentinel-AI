@@ -30,6 +30,7 @@ export function MapContainer({
     // Dynamic import to prevent SSR
     const init = async () => {
       const L = await import("leaflet");
+      // @ts-ignore
       await import("leaflet/dist/leaflet.css");
 
       const map = L.map(mapRef.current!, {

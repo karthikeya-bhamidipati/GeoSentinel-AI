@@ -1,3 +1,76 @@
-data/raw/*
-data/interim/*
-data/processed/*
+# =============================================================================
+# Python / Backend
+# =============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+venv/
+env/
+ENV/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# =============================================================================
+# Next.js / Node.js Frontend
+# =============================================================================
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.vercel/
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/.pnp.*
+frontend/.eslintcache
+
+# =============================================================================
+# GeoSentinel AI Data & Cache
+# =============================================================================
+# Ignore heavy satellite imagery, outputs, and cache, but KEEP reference data
+data/scenes/
+data/cache/
+data/outputs/
+data/reports/
+!data/reference/
+
+# Logs
+logs/
+*.log
+
+# =============================================================================
+# Environments & Secrets
+# =============================================================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# =============================================================================
+# IDEs & OS Files
+# =============================================================================
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

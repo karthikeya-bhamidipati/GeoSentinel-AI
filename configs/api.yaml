@@ -1,0 +1,14 @@
+api:
+  host: "127.0.0.1"
+  port: 8000
+  debug: true
+
+cors:
+  allow_origins:
+    - "*"
+
+uploads:
+  directory: "data/raw/uploads"
+
+cache:
+  enabled: true

@@ -1,0 +1,23 @@
+rules:
+
+  vegetation_loss:
+    threshold: 15
+    recommendation: >
+      Significant vegetation loss detected.
+      Field verification is recommended.
+
+  urban_expansion:
+    threshold: 10
+    recommendation: >
+      Rapid urban expansion observed.
+      Monitor future land use changes.
+
+  water_loss:
+    threshold: 5
+    recommendation: >
+      Water body reduction detected.
+      Further hydrological analysis is recommended.
+
+  stable:
+    recommendation: >
+      No significant land cover changes detected.

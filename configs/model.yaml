@@ -1,0 +1,21 @@
+model:
+  name: unet
+
+encoder:
+  backbone: resnet34
+  pretrained: true
+
+input:
+  channels: 4
+
+output:
+  classes: 2
+
+training:
+  loss: dice_bce
+  optimizer: adam
+  scheduler: cosine
+
+checkpoint:
+  save_best_only: true
+  monitor: dice

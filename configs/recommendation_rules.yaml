@@ -1,23 +1,127 @@
 rules:
 
-  vegetation_loss:
-    threshold: 15
+  vegetation_loss_critical:
+    id: "VEG_LOSS_CRITICAL"
+    category: "Vegetation"
+    severity: "CRITICAL"
+    threshold_pct: 25.0
+    condition: "vegetation_loss_pct >= threshold"
+    title: "Critical Vegetation Loss Detected"
     recommendation: >
-      Significant vegetation loss detected.
-      Field verification is recommended.
+      A critical level of vegetation cover has been lost in the selected area.
+      Immediate field investigation is recommended. Initiate emergency afforestation
+      programs and restrict any further land clearing activities. Notify the
+      Telangana Forest Department for intervention.
+    why_template: >
+      Vegetation cover decreased by {change_pct:.1f}% ({change_km2:.2f} km²)
+      between {date1} and {date2}, which exceeds the critical threshold of {threshold:.0f}%.
 
-  urban_expansion:
-    threshold: 10
+  vegetation_loss_moderate:
+    id: "VEG_LOSS_MODERATE"
+    category: "Vegetation"
+    severity: "HIGH"
+    threshold_pct: 15.0
+    condition: "vegetation_loss_pct >= threshold"
+    title: "Significant Vegetation Loss Detected"
     recommendation: >
-      Rapid urban expansion observed.
-      Monitor future land use changes.
+      Significant vegetation loss has been detected. Plan and execute targeted afforestation
+      programs in affected zones. Identify drivers (construction, agriculture conversion,
+      fire) through ground truth verification. Monitor monthly for further changes.
+    why_template: >
+      Vegetation cover decreased by {change_pct:.1f}% ({change_km2:.2f} km²)
+      between {date1} and {date2}, exceeding the high-alert threshold of {threshold:.0f}%.
 
-  water_loss:
-    threshold: 5
+  urban_expansion_rapid:
+    id: "URBAN_EXP_RAPID"
+    category: "Urban"
+    severity: "HIGH"
+    threshold_pct: 10.0
+    condition: "urban_gain_pct >= threshold"
+    title: "Rapid Urban Expansion Detected"
     recommendation: >
-      Water body reduction detected.
-      Further hydrological analysis is recommended.
+      Rapid urbanization is occurring in the study area. Engage HMDA (Hyderabad Metropolitan
+      Development Authority) to review Master Plan compliance. Prioritize green buffer zones
+      and ensure infrastructure (roads, water, drainage) is upgraded proportionally.
+    why_template: >
+      Urban cover increased by {change_pct:.1f}% ({change_km2:.2f} km²)
+      between {date1} and {date2}, exceeding the rapid-expansion threshold of {threshold:.0f}%.
+
+  urban_near_water:
+    id: "URBAN_NEAR_WATER"
+    category: "Urban"
+    severity: "CRITICAL"
+    buffer_m: 500
+    condition: "urban_expansion_near_water_body"
+    title: "Urban Encroachment Near Water Bodies"
+    recommendation: >
+      Urban expansion is occurring within 500 m of a water body. This is a high-risk
+      scenario for flooding, contamination, and ecosystem degradation. Apply planning
+      restrictions under Section 12 of the AP Water Bodies Protection Act.
+      Initiate immediate demarcation of Full Tank Level (FTL) boundaries.
+    why_template: >
+      New urban pixels were detected within {distance_m:.0f} m of water bodies
+      ({area_km2:.2f} km² affected). Encroachment within the 500 m buffer is restricted
+      under water body protection regulations.
+
+  water_body_loss:
+    id: "WATER_LOSS"
+    category: "Water"
+    severity: "HIGH"
+    threshold_pct: 5.0
+    condition: "water_loss_pct >= threshold"
+    title: "Water Body Reduction Detected"
+    recommendation: >
+      A reduction in water body extent has been detected. Conduct hydrological analysis
+      to determine if this is seasonal or permanent. If permanent, file an encroachment
+      report with HMDA Water Body Cell. Restore buffer vegetation to reduce evaporation.
+    why_template: >
+      Water body cover decreased by {change_pct:.1f}% ({change_km2:.2f} km²)
+      between {date1} and {date2}, exceeding the alert threshold of {threshold:.0f}%.
+
+  ndvi_decline:
+    id: "NDVI_DECLINE"
+    category: "Vegetation Health"
+    severity: "MEDIUM"
+    threshold_delta: -0.15
+    condition: "mean_ndvi_change <= threshold"
+    title: "Vegetation Health Decline"
+    recommendation: >
+      Average vegetation health (NDVI) has declined significantly. Investigate for
+      drought stress, soil degradation, or pest infestation. Recommend soil
+      health monitoring and targeted irrigation support in affected parcels.
+    why_template: >
+      Mean NDVI decreased by {ndvi_delta:.3f} between {date1} and {date2},
+      which exceeds the health decline threshold of {threshold:.2f}.
+
+  hotspot_detected:
+    id: "HOTSPOT"
+    category: "Change Hotspot"
+    severity: "HIGH"
+    min_cluster_km2: 0.5
+    condition: "hotspot_count > 0"
+    title: "Land Cover Change Hotspots Identified"
+    recommendation: >
+      Concentrated change hotspots have been identified. These may indicate targeted
+      development activity or environmental disturbance. Dispatch field teams to
+      highest-priority locations for immediate ground verification and documentation.
+    why_template: >
+      {hotspot_count} change hotspot(s) were detected, each exceeding {min_cluster_km2} km².
+      The largest hotspot covers {largest_km2:.2f} km² centered at {center_lat:.4f}°N,
+      {center_lon:.4f}°E.
 
   stable:
+    id: "STABLE"
+    category: "General"
+    severity: "LOW"
+    condition: "no_significant_change"
+    title: "No Significant Land Cover Changes"
     recommendation: >
-      No significant land cover changes detected.
+      No significant land cover changes were detected in the selected area and time period.
+      Continue periodic monitoring (quarterly recommended) to detect emerging trends early.
+    why_template: >
+      Land cover changes between {date1} and {date2} were within normal variation
+      thresholds across all categories.
+
+thresholds:
+  min_change_area_km2: 0.1
+  confidence_minimum: 0.65

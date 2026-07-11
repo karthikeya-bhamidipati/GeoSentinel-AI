@@ -74,6 +74,12 @@ class BSICalculator:
         nir = nir.astype("float32")
         blue = blue.astype("float32")
 
+        if swir1.shape != nir.shape:
+            fy = max(1, round(nir.shape[0] / swir1.shape[0]))
+            fx = max(1, round(nir.shape[1] / swir1.shape[1]))
+            swir1 = np.repeat(np.repeat(swir1, fy, axis=0), fx, axis=1)
+            swir1 = swir1[:nir.shape[0], :nir.shape[1]]
+
         numerator = (swir1 + red) - (nir + blue)
         denominator = (swir1 + red) + (nir + blue) + epsilon
 

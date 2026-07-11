@@ -71,6 +71,12 @@ export const analysisApi = {
    */
   downloadUrl: (jobId: string, fileType: string): string =>
     `${API_BASE}/download/${jobId}/${fileType}`,
+
+  /**
+   * Fetch the history of analysis jobs.
+   */
+  getHistory: async (): Promise<{ jobs: any[] }> =>
+    apiFetch<{ jobs: any[] }>("/analysis/history"),
 };
 
 // --------------------------------------------------------------------------

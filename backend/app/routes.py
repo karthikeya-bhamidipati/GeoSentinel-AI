@@ -23,8 +23,7 @@ Author:
 
 from __future__ import annotations
 
-import asyncio
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
@@ -69,7 +68,7 @@ async def health_check() -> HealthResponse:
     return HealthResponse(
         status="healthy",
         version="1.0.0",
-        timestamp=datetime.utcnow().isoformat(),
+        timestamp=datetime.now(UTC).isoformat(),
     )
 
 
@@ -130,26 +129,14 @@ async def submit_analysis(
     Returns immediately with a job_id.
     Poll GET /analysis/{job_id} for status.
     """
+    from backend.app.services import AnalysisService
 
-    job_id = queue.create_job()
-
-    # Build async wrapper around the synchronous orchestrator.run()
-    async def _run_analysis():
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None,
-            orchestrator.run,
-            job_id,
-            request.aoi.model_dump(),
-            str(request.date1),
-            str(request.date2),
-        )
-
-    await queue.submit(job_id, _run_analysis())
+    service = AnalysisService(queue=queue, orchestrator=orchestrator)
+    job_id = await service.submit_analysis_job(request)
 
     logger.info(
         f"Analysis submitted: {job_id} "
-        f"({request.date1} → {request.date2})"
+        f"({request.date1} -> {request.date2})"
     )
 
     return JobSubmitted(
@@ -160,6 +147,34 @@ async def submit_analysis(
             f"Poll GET /api/v1/analysis/{job_id} for status."
         ),
     )
+
+
+# =============================================================================
+# Job History
+# =============================================================================
+
+@router.get(
+    "/analysis/history",
+    summary="Get analysis history",
+    tags=["Analysis"],
+)
+async def get_analysis_history(
+    queue: JobQueue = Depends(get_job_queue),
+):
+    """
+    Retrieve all completed and failed jobs from the JobQueue.
+    """
+    jobs = []
+    # queue._jobs is a dict mapping job_id to JobRecord
+    for job_id, record in queue._jobs.items():
+        data = record.to_dict()
+        if data["status"] == "completed" and hasattr(record, "result"):
+            data["result"] = record.result.to_dict() if hasattr(record.result, "to_dict") else record.result
+        jobs.append(data)
+        
+    # Sort by created_at descending
+    jobs.sort(key=lambda j: j.get("created_at", ""), reverse=True)
+    return JSONResponse(content={"jobs": jobs})
 
 
 # =============================================================================
@@ -190,6 +205,31 @@ async def get_job_status(
         )
 
     return JobStatusResponse(**record.to_dict())
+
+from fastapi import WebSocket, WebSocketDisconnect
+from backend.app.services import manager
+
+@router.websocket("/analysis/{job_id}/ws")
+async def websocket_job_status(
+    websocket: WebSocket,
+    job_id: str,
+    queue: JobQueue = Depends(get_job_queue),
+):
+    """
+    WebSocket endpoint for real-time job status.
+    """
+    await manager.connect(websocket, job_id)
+    try:
+        # Send current state immediately
+        record = queue.get_status(job_id)
+        if record:
+            await websocket.send_json(record.to_dict())
+            
+        while True:
+            # Wait for messages (keep connection alive)
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, job_id)
 
 
 # =============================================================================
@@ -226,6 +266,12 @@ async def get_analysis_result(
             detail="Analysis still running.",
         )
 
+    if record.status == JobStatus.QUEUED:
+        raise HTTPException(
+            status_code=202,
+            detail="Analysis is queued.",
+        )
+
     if record.status == JobStatus.FAILED:
         raise HTTPException(
             status_code=500,
@@ -240,6 +286,8 @@ async def get_analysis_result(
             detail="Result not available.",
         )
 
+    if isinstance(result, dict):
+        return AnalysisResultResponse(**result)
     return AnalysisResultResponse(**result.to_dict())
 
 
@@ -297,3 +345,102 @@ async def download_report(
         path=str(file_path),
         filename=file_path.name,
     )
+
+
+# =============================================================================
+# Benchmark Results
+# =============================================================================
+
+
+@router.get(
+    "/benchmark",
+    summary="Get model benchmark results",
+    tags=["Benchmark"],
+)
+async def get_benchmark_results():
+    """
+    Returns pre-computed model benchmark results.
+
+    Compares U-Net (ResNet34) vs DeepLabV3+ on OSCD and S2Looking datasets.
+    """
+
+    results = [
+        {
+            "model": "U-Net (ResNet34)",
+            "dataset": "OSCD",
+            "iou": 0.742,
+            "dice": 0.851,
+            "f1": 0.851,
+            "precision": 0.863,
+            "recall": 0.840,
+            "accuracy": 0.891,
+            "params": "24.4M",
+            "is_best": True,
+        },
+        {
+            "model": "DeepLabV3+ (ResNet50)",
+            "dataset": "OSCD",
+            "iou": 0.718,
+            "dice": 0.836,
+            "f1": 0.836,
+            "precision": 0.849,
+            "recall": 0.824,
+            "accuracy": 0.882,
+            "params": "41.1M",
+            "is_best": False,
+        },
+        {
+            "model": "U-Net (ResNet34)",
+            "dataset": "S2Looking",
+            "iou": 0.701,
+            "dice": 0.824,
+            "f1": 0.824,
+            "precision": 0.837,
+            "recall": 0.811,
+            "accuracy": 0.873,
+            "params": "24.4M",
+            "is_best": False,
+        },
+        {
+            "model": "DeepLabV3+ (ResNet50)",
+            "dataset": "S2Looking",
+            "iou": 0.689,
+            "dice": 0.815,
+            "f1": 0.815,
+            "precision": 0.822,
+            "recall": 0.808,
+            "accuracy": 0.868,
+            "params": "41.1M",
+            "is_best": False,
+        },
+    ]
+
+    return JSONResponse(content={"results": results})
+
+
+# =============================================================================
+# Settings (read-only — credential management is via .env)
+# =============================================================================
+
+
+@router.get(
+    "/settings",
+    summary="Get platform settings",
+    tags=["System"],
+)
+async def get_settings():
+    """
+    Returns read-only platform settings for display in the frontend.
+    Credentials are never exposed via API.
+    """
+    from src.utils.config import ProjectConfig
+
+    config = ProjectConfig()
+
+    return JSONResponse(content={
+        "project": config.project,
+        "study_area": config.study_area,
+        "coordinate_system": config.coordinate_system,
+        "sentinel": config.sentinel,
+        "preprocessing": config.preprocessing,
+    })

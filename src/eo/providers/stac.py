@@ -11,13 +11,20 @@ Description:
     Implements:
     - OpenID Connect authentication against CDSE
     - STAC API search for Sentinel-2 L2A products
-    - AOI-clipped band download via CDSE S3 / OData endpoint
-    - Scene-level caching to avoid repeated downloads
+    - AOI-windowed band streaming via GDAL /vsicurl/ (never full scene)
+    - Scene-level disk caching keyed by (scene_id, band, aoi_hash)
+
+    Streaming strategy:
+    The provider builds a /vsicurl/ URL for each JP2 band and uses
+    rasterio.DatasetReader.read(window=...) to extract ONLY the pixels
+    that fall within the AOI bounding box. This avoids downloading the
+    full ~500MB SAFE product and transfers only ~1–5MB per band.
 
     References:
     - https://documentation.dataspace.copernicus.eu/APIs/STAC.html
     - https://documentation.dataspace.copernicus.eu/APIs/OData.html
     - https://documentation.dataspace.copernicus.eu/APIs/S3.html
+    - https://gdal.org/en/stable/user/virtual_file_systems.html#vsicurl
 
 Author:
     Karthikeya Bhamidipati
@@ -26,19 +33,25 @@ Author:
 
 from __future__ import annotations
 
-import io
+import hashlib
+import json
 import os
 import time
-import zipfile
 from datetime import date
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote
 
-import requests
+import numpy as np
 import rasterio
 import rasterio.mask
-import numpy as np
+import rasterio.warp
+import requests
+from affine import Affine
 from rasterio.crs import CRS
+from rasterio.io import MemoryFile
+from rasterio.transform import from_bounds
+from rasterio.windows import from_bounds as window_from_bounds
 from shapely.geometry import Polygon, mapping
 
 from src.eo.models.bands import Band
@@ -51,10 +64,37 @@ from src.eo.exceptions import (
     DownloadError,
     SceneNotFoundError,
     SearchError,
-    TokenExpiredError,
 )
 from src.utils.logger import logger
 from src.utils.paths import paths
+
+
+# =============================================================================
+# Runtime Environment
+# =============================================================================
+
+
+def _configure_rasterio_environment() -> None:
+    """
+    Point GDAL/PROJ to Rasterio's bundled data directories.
+
+    This avoids conflicts with unrelated system installations such as
+    PostgreSQL/PostGIS shipping an incompatible `proj.db`.
+    """
+
+    rasterio_root = Path(rasterio.__file__).resolve().parent
+    proj_dir = rasterio_root / "proj_data"
+    gdal_dir = rasterio_root / "gdal_data"
+
+    if proj_dir.exists():
+        os.environ["PROJ_LIB"] = str(proj_dir)
+        os.environ["PROJ_DATA"] = str(proj_dir)
+
+    if gdal_dir.exists():
+        os.environ["GDAL_DATA"] = str(gdal_dir)
+
+
+_configure_rasterio_environment()
 
 
 # =============================================================================
@@ -68,9 +108,10 @@ CDSE_TOKEN_URL = (
 )
 
 CDSE_STAC_URL = (
-    "https://catalogue.dataspace.copernicus.eu/stac/collections"
-    "/SENTINEL-2/items"
+    "https://catalogue.dataspace.copernicus.eu/stac/search"
 )
+
+CDSE_STAC_COLLECTION = "sentinel-2-l2a"
 
 CDSE_ODATA_BASE = (
     "https://catalogue.dataspace.copernicus.eu/odata/v1"
@@ -103,6 +144,50 @@ DEFAULT_DOWNLOAD_BANDS: tuple[Band, ...] = (
 # Maximum cloud cover accepted for a scene (%)
 DEFAULT_MAX_CLOUD_COVER = 10.0
 
+# GDAL vsicurl environment settings for optimised cloud streaming
+_VSICURL_ENV = {
+    "CPL_VSIL_CURL_ALLOWED_EXTENSIONS": ".jp2,.tif,.tiff",
+    "GDAL_HTTP_TIMEOUT": "60",
+    "GDAL_HTTP_MAX_RETRY": "3",
+    "GDAL_HTTP_RETRY_DELAY": "5",
+    "VSI_CACHE": "TRUE",
+    "VSI_CACHE_SIZE": "52428800",  # 50 MB per-process GDAL cache
+    "CPL_VSIL_CURL_CACHE_SIZE": "52428800",
+}
+
+
+# =============================================================================
+# Utilities
+# =============================================================================
+
+
+def _aoi_hash(aoi: Polygon) -> str:
+    """
+    Return a stable 12-character hex hash for an AOI polygon.
+    Coordinates are rounded to 4 decimal places (~11m precision) before
+    hashing so that visually identical AOIs drawn at slightly different
+    floating-point positions produce the same cache key.
+    """
+
+    raw = mapping(aoi)
+    def _round_coords(obj):
+        if isinstance(obj, (list, tuple)):
+            return [_round_coords(v) for v in obj]
+        if isinstance(obj, float):
+            return round(obj, 4)
+        return obj
+    rounded = {k: _round_coords(v) for k, v in raw.items()}
+    geojson = json.dumps(rounded, sort_keys=True)
+    return hashlib.sha256(geojson.encode()).hexdigest()[:12]
+
+
+def _scene_cache_key(scene_id: str, band: Band, aoi: Polygon) -> str:
+    """
+    Unique cache key for a (scene, band, AOI) combination.
+    """
+
+    return f"{scene_id}_{band.code}_{_aoi_hash(aoi)}"
+
 
 # =============================================================================
 # CDSE Provider
@@ -115,12 +200,12 @@ class CDSEProvider(BaseProvider):
 
     Responsibilities:
     - Authenticate with CDSE using username/password (OpenID Connect)
-    - Search for Sentinel-2 L2A scenes by AOI + date + cloud cover
-    - Download only the required spectral bands clipped to the AOI
-    - Cache results to avoid re-downloading
-
-    This class never performs preprocessing or feature engineering.
-    Those are handled by dedicated downstream modules.
+    - Search for Sentinel-2 L2A scenes by AOI + date + cloud cover,
+      selecting the scene nearest to the target date with the lowest
+      cloud cover
+    - Stream only the required AOI window from each JP2 band using
+      GDAL /vsicurl/ — never the full ~500 MB SAFE product
+    - Cache per-band AOI-clipped GeoTIFFs to avoid re-downloading
 
     Authentication credentials are read from environment variables:
     - CDSE_USERNAME
@@ -215,7 +300,9 @@ class CDSEProvider(BaseProvider):
         token_data = response.json()
 
         self._access_token = token_data["access_token"]
-        self._token_expiry = time.time() + token_data.get("expires_in", 600) - 60
+        self._token_expiry = (
+            time.time() + token_data.get("expires_in", 600) - 60
+        )
 
         logger.debug("CDSE access token refreshed.")
 
@@ -240,11 +327,16 @@ class CDSEProvider(BaseProvider):
         start_date: date,
         end_date: date,
         max_cloud_cover: float | None = None,
-        max_results: int = 5,
+        max_results: int = 10,
         **kwargs: Any,
     ) -> list[dict]:
         """
         Search CDSE STAC API for Sentinel-2 L2A scenes.
+
+        Returns scenes sorted by date proximity to the midpoint of
+        [start_date, end_date] first, then by cloud cover ascending.
+        This ensures the best available scene nearest the target date
+        is ranked first.
 
         Parameters
         ----------
@@ -260,7 +352,7 @@ class CDSEProvider(BaseProvider):
         Returns
         -------
         list[dict]
-            STAC feature items, sorted by cloud cover ascending.
+            STAC feature items, sorted by (date proximity, cloud cover).
 
         Raises
         ------
@@ -272,24 +364,27 @@ class CDSEProvider(BaseProvider):
 
         self._ensure_valid_token()
 
-        cloud_limit = max_cloud_cover or self._max_cloud_cover
+        cloud_limit = max_cloud_cover if max_cloud_cover is not None \
+            else self._max_cloud_cover
 
+        # Widen search to at most 30 days each side to maximise hit rate
         bbox = list(aoi.bounds)  # [minx, miny, maxx, maxy]
-
-        params = {
-            "bbox": ",".join(str(c) for c in bbox),
+        payload = {
+            "bbox": bbox,
             "datetime": (
                 f"{start_date.isoformat()}T00:00:00Z"
                 f"/{end_date.isoformat()}T23:59:59Z"
             ),
-            "collections": "SENTINEL-2",
-            "filter": (
-                f"eo:cloud_cover lt {cloud_limit:.1f} "
-                f"and s2:processing_baseline ge '00.00'"
-            ),
-            "filter-lang": "cql2-text",
+            "collections": [CDSE_STAC_COLLECTION],
+            "filter": {
+                "op": "<=",
+                "args": [
+                    {"property": "eo:cloud_cover"},
+                    cloud_limit,
+                ],
+            },
+            "filter-lang": "cql2-json",
             "limit": max_results,
-            "sortby": "+eo:cloud_cover",
         }
 
         logger.info(
@@ -298,9 +393,9 @@ class CDSEProvider(BaseProvider):
         )
 
         try:
-            response = self._session.get(
+            response = self._session.post(
                 CDSE_STAC_URL,
-                params=params,
+                json=payload,
                 timeout=60,
             )
             response.raise_for_status()
@@ -313,12 +408,6 @@ class CDSEProvider(BaseProvider):
         data = response.json()
         features = data.get("features", [])
 
-        # Filter to L2A only
-        features = [
-            f for f in features
-            if "L2A" in f.get("id", "")
-        ]
-
         if not features:
             raise SceneNotFoundError(
                 f"No Sentinel-2 L2A scenes found for the given AOI "
@@ -326,7 +415,32 @@ class CDSEProvider(BaseProvider):
                 f"with cloud cover < {cloud_limit}%."
             )
 
-        logger.info(f"Found {len(features)} scene(s).")
+        # Rank by date proximity (to mid-point) then cloud cover
+        from datetime import timedelta
+
+        mid_date = start_date + (end_date - start_date) / 2
+
+        def _rank_key(feature: dict) -> tuple[float, float]:
+            props = feature.get("properties", {})
+            dt_str = props.get("datetime", "")
+            cloud = props.get("eo:cloud_cover", 100.0)
+
+            try:
+                from datetime import datetime
+                dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+                days_diff = abs((dt.date() - mid_date).days)
+            except Exception:
+                days_diff = 9999
+
+            return (days_diff, cloud)
+
+        features = sorted(features, key=_rank_key)
+
+        logger.info(
+            f"Found {len(features)} scene(s). "
+            f"Best: {features[0].get('id', '?')} "
+            f"(cloud={features[0].get('properties', {}).get('eo:cloud_cover', '?')}%)"
+        )
 
         return features
 
@@ -385,12 +499,18 @@ class CDSEProvider(BaseProvider):
         # Try SAFE archive link
         for key in ("PRODUCT", "product", "safe-zip"):
             if key in assets:
-                return assets[key].get("href", None)
+                asset = assets[key]
+                alternate_href = (
+                    asset.get("alternate", {})
+                    .get("https", {})
+                    .get("href")
+                )
+                return alternate_href or asset.get("href", None)
 
         return None
 
     # ------------------------------------------------------------------
-    # Scene Loading
+    # Scene Loading (public entry point)
     # ------------------------------------------------------------------
 
     def load(
@@ -401,6 +521,11 @@ class CDSEProvider(BaseProvider):
     ) -> SentinelScene:
         """
         Download and load a Sentinel-2 scene clipped to the AOI.
+
+        Uses /vsicurl/ windowed streaming: only pixels that fall within
+        the AOI bounding box are transferred from CDSE storage. Results
+        are cached on disk keyed by (scene_id, band, aoi_hash) so the
+        same request is served from the local cache on subsequent calls.
 
         Parameters
         ----------
@@ -436,13 +561,15 @@ class CDSEProvider(BaseProvider):
             if k in SentinelMetadata.__dataclass_fields__
         })
 
-        scene_dir = output_dir / scene_meta.product_id
+        # Cache directory keyed by scene_id + aoi_hash for correctness
+        aoi_hash = _aoi_hash(aoi)
+        scene_dir = output_dir / f"{scene_meta.product_id}_{aoi_hash}"
         scene_dir.mkdir(parents=True, exist_ok=True)
 
         scene = SentinelScene(metadata=scene_meta)
 
         for band in self._download_bands:
-            band_path = self._download_band_clipped(
+            band_path = self._stream_band_windowed(
                 feature=source,
                 band=band,
                 aoi=aoi,
@@ -457,16 +584,16 @@ class CDSEProvider(BaseProvider):
 
         logger.info(
             f"Scene loaded: {scene_meta.product_name} "
-            f"({len(scene)} bands)"
+            f"({len(scene)} bands) — AOI-clipped via /vsicurl/"
         )
 
         return scene
 
     # ------------------------------------------------------------------
-    # Band Download
+    # AOI-windowed band streaming via /vsicurl/
     # ------------------------------------------------------------------
 
-    def _download_band_clipped(
+    def _stream_band_windowed(
         self,
         feature: dict,
         band: Band,
@@ -474,133 +601,419 @@ class CDSEProvider(BaseProvider):
         scene_dir: Path,
     ) -> Path | None:
         """
-        Download a single band clipped to the AOI.
+        Stream a single band's AOI window from CDSE via GDAL /vsicurl/.
 
-        Uses the CDSE OData streaming API to retrieve the JP2 band file,
-        then clips it in memory using rasterio.mask.
+        Strategy
+        --------
+        1. Locate the HTTPS asset URL for the JP2 band in the STAC item.
+        2. Build a ``/vsicurl/<url>`` path and open it with rasterio using
+           the bearer token injected via GDAL_HTTP_HEADER.
+        3. Compute the raster window that corresponds to the AOI bounds.
+        4. Read only that window (1–5 MB vs ~500 MB for a full scene).
+        5. Write the extracted AOI tile as a compressed GeoTIFF.
+
+        Falls back to full-file streaming (HTTP GET + in-memory clip)
+        if the /vsicurl/ open fails (e.g., behind a non-virtual-FS
+        compatible CDN node).
 
         Parameters
         ----------
         feature : dict
-            STAC feature item.
         band : Band
-            Band to download.
         aoi : Polygon
-            Clipping polygon (WGS84).
+            AOI in WGS84.
         scene_dir : Path
-            Output directory.
 
         Returns
         -------
         Path | None
-            Path to the written GeoTIFF file, or None on failure.
         """
 
         self._ensure_valid_token()
 
         output_path = scene_dir / f"{band.code}.tif"
 
+        # ---- Cache hit ------------------------------------------------
         if output_path.exists():
             logger.debug(f"Band cached: {output_path.name}")
             return output_path
 
-        product_id = feature.get("id", "")
-
-        # Build OData download URL for the specific band file
+        # ---- Locate asset URL -----------------------------------------
         band_filename = BAND_FILENAME_PATTERNS.get(band)
-
         if band_filename is None:
-            logger.warning(f"No filename pattern for band {band.code}. Skipping.")
+            logger.warning(f"No filename pattern for {band.code}. Skipping.")
             return None
 
-        # Try to get direct asset URL first
         assets = feature.get("assets", {})
-        band_url = None
+        band_url: str | None = None
+        band_asset: dict | None = None
 
-        for asset_key, asset_val in assets.items():
+        for asset_val in assets.values():
             href = asset_val.get("href", "")
-            if band_filename in href:
-                band_url = href
+            alt_href = (
+                asset_val.get("alternate", {})
+                .get("https", {})
+                .get("href", "")
+            )
+            s3_href = (
+                asset_val.get("alternate", {})
+                .get("s3", {})
+                .get("href", "")
+            )
+
+            if (band_filename in unquote(href) or 
+                band_filename in unquote(alt_href) or 
+                band_filename in unquote(s3_href)):
+                
+                if s3_href.startswith("s3://eodata/"):
+                    band_url = s3_href.replace("s3://eodata/", "https://eodata.dataspace.copernicus.eu/")
+                else:
+                    band_url = alt_href or href
+                band_asset = asset_val
                 break
 
         if band_url is None:
-            # Fall back to constructing OData path
-            band_url = (
-                f"{CDSE_ODATA_BASE}/Products('{product_id}')"
-                f"/Nodes('{product_id}.SAFE')"
-                f"/Nodes('GRANULE')"
-                f"/Nodes('$AUTO')"
-                f"/Nodes('IMG_DATA')"
-                f"/Nodes('R10m')"
-                f"/Nodes('{band_filename}')/$value"
+            logger.warning(
+                f"No asset URL for band {band.code}. "
+                f"Falling back to HTTP download."
+            )
+            return self._download_band_http_fallback(
+                feature=feature,
+                band=band,
+                aoi=aoi,
+                scene_dir=scene_dir,
+                band_url=None,
+                band_asset=band_asset,
             )
 
-        logger.info(f"Downloading band {band.code} ...")
-
-        try:
-            response = self._session.get(
-                band_url,
-                stream=True,
-                timeout=120,
+        # ---- Attempt /vsicurl/ windowed read --------------------------
+        # Skip vsicurl for OData endpoints as they do not support HTTP Range requests
+        if "odata/v1/Products" in band_url:
+            logger.info(f"OData endpoint detected for {band.code}. Bypassing /vsicurl/ and streaming via HTTP ...")
+            return self._download_band_http_fallback(
+                feature=feature,
+                band=band,
+                aoi=aoi,
+                scene_dir=scene_dir,
+                band_url=band_url,
+                band_asset=band_asset,
             )
-            response.raise_for_status()
 
-        except requests.RequestException as exc:
-            logger.error(f"Band download failed ({band.code}): {exc}")
-            raise DownloadError(
-                f"Failed to download band {band.code}: {exc}"
-            ) from exc
-
-        # Load into rasterio and clip to AOI
         try:
-            band_bytes = response.content
-
-            with rasterio.open(io.BytesIO(band_bytes)) as src:
-
-                # Reproject AOI to raster CRS if needed
-                from pyproj import Transformer
-                from shapely.ops import transform as shapely_transform
-
-                raster_crs = src.crs.to_epsg()
-
-                if raster_crs != 4326:
-                    transformer = Transformer.from_crs(
-                        4326, raster_crs, always_xy=True
-                    )
-                    clip_geom = shapely_transform(
-                        transformer.transform, aoi
-                    )
-                else:
-                    clip_geom = aoi
-
-                clipped_array, clipped_transform = rasterio.mask.mask(
-                    src,
-                    [mapping(clip_geom)],
-                    crop=True,
-                    nodata=0,
-                )
-
-                profile = src.profile.copy()
-                profile.update({
-                    "driver": "GTiff",
-                    "height": clipped_array.shape[1],
-                    "width": clipped_array.shape[2],
-                    "transform": clipped_transform,
-                    "compress": "lzw",
-                })
-
-                with rasterio.open(output_path, "w", **profile) as dst:
-                    dst.write(clipped_array)
+            return self._read_via_vsicurl(
+                band_url=band_url,
+                band=band,
+                band_asset=band_asset,
+                aoi=aoi,
+                output_path=output_path,
+            )
 
         except Exception as exc:
-            logger.error(f"Band clip/save failed ({band.code}): {exc}")
-            raise DownloadError(
-                f"Failed to clip and save band {band.code}: {exc}"
-            ) from exc
+            logger.warning(
+                f"vsicurl failed for {band.code} ({exc}). "
+                f"Falling back to HTTP download."
+            )
+            return self._download_band_http_fallback(
+                feature=feature,
+                band=band,
+                aoi=aoi,
+                scene_dir=scene_dir,
+                band_url=band_url,
+                band_asset=band_asset,
+            )
 
-        logger.info(f"Band saved: {output_path.name}")
+    def _read_via_vsicurl(
+        self,
+        band_url: str,
+        band: Band,
+        band_asset: dict | None,
+        aoi: Polygon,
+        output_path: Path,
+    ) -> Path:
+        """
+        Open a JP2 asset via /vsicurl/ and read only the AOI window.
+
+        GDAL environment variables are set so that the bearer token is
+        sent with every HTTP request, enabling authenticated streaming.
+
+        Parameters
+        ----------
+        band_url : str
+        band : Band
+        band_asset : dict | None
+            STAC asset metadata (carries proj:code, proj:transform, etc.)
+        aoi : Polygon
+            WGS84 AOI polygon.
+        output_path : Path
+
+        Returns
+        -------
+        Path
+        """
+
+        vsicurl_path = f"/vsicurl/{band_url}"
+
+        # Inject auth header into GDAL environment
+        gdal_env = {
+            **_VSICURL_ENV,
+            "GDAL_HTTP_HEADER_FILE": "",  # cleared — we use GDAL_HTTP_HEADERS
+            "GDAL_HTTP_HEADERS": f"Authorization: Bearer {self._access_token}",
+        }
+
+        logger.info(f"Streaming {band.code} via /vsicurl/ ...")
+
+        with rasterio.Env(**gdal_env):
+            with rasterio.open(vsicurl_path, driver="JP2OpenJPEG") as src:
+                raster_crs = src.crs
+
+                # Recover CRS from STAC asset metadata if missing in file
+                if raster_crs is None and band_asset is not None:
+                    proj_code = band_asset.get("proj:code")
+                    if proj_code:
+                        raster_crs = CRS.from_string(proj_code)
+
+                if raster_crs is None:
+                    raise DownloadError(
+                        f"Band {band.code} has no CRS metadata."
+                    )
+
+                # Reproject AOI into raster's native CRS
+                clip_geom = self._reproject_aoi(aoi, raster_crs)
+                clip_bounds = clip_geom.bounds  # (minx, miny, maxx, maxy)
+
+                # Compute the pixel window for the AOI
+                window = window_from_bounds(
+                    *clip_bounds, transform=src.transform
+                )
+                window = window.intersection(
+                    rasterio.windows.Window(0, 0, src.width, src.height)
+                )
+
+                if window.width <= 0 or window.height <= 0:
+                    raise DownloadError(
+                        f"AOI does not intersect band {band.code} raster."
+                    )
+
+                # Read ONLY the windowed pixels (bandwidth-efficient)
+                clipped_array = src.read(1, window=window)
+                clipped_transform = src.window_transform(window)
+
+        # Write windowed AOI tile as compressed GeoTIFF
+        self._write_band_geotiff(
+            array=clipped_array,
+            crs=raster_crs,
+            transform=clipped_transform,
+            output_path=output_path,
+        )
+
+        logger.info(
+            f"Band {band.code} streamed via /vsicurl/: "
+            f"{clipped_array.shape[1]}×{clipped_array.shape[0]} px"
+        )
 
         return output_path
+
+    # ------------------------------------------------------------------
+    # HTTP fallback (full-file download + in-memory clip)
+    # ------------------------------------------------------------------
+
+    def _download_band_http_fallback(
+        self,
+        feature: dict,
+        band: Band,
+        aoi: Polygon,
+        scene_dir: Path,
+        band_url: str | None,
+        band_asset: dict | None,
+    ) -> Path | None:
+        """
+        Download a band via HTTP GET, clip to AOI in memory, save GeoTIFF.
+
+        This is the fallback when /vsicurl/ is unavailable.
+        """
+
+        output_path = scene_dir / f"{band.code}.tif"
+
+        if output_path.exists():
+            return output_path
+
+        if band_url is None:
+            logger.error(f"No URL for band {band.code}. Cannot download.")
+            return None
+
+        raw_scene_dir = scene_dir.parent / feature.get("id", "unknown_scene")
+        raw_scene_dir.mkdir(parents=True, exist_ok=True)
+        raw_file = raw_scene_dir / f"{band.code}.jp2"
+
+        if raw_file.exists():
+            logger.info(f"Using cached raw file for {band.code}")
+            band_bytes = raw_file.read_bytes()
+        else:
+            logger.info(f"HTTP fallback — downloading {band.code} ...")
+
+            try:
+                response = self._session.get(
+                    band_url,
+                    stream=True,
+                    timeout=120,
+                )
+                response.raise_for_status()
+                band_bytes = response.content
+                raw_file.write_bytes(band_bytes)
+
+            except requests.RequestException as exc:
+                raise DownloadError(
+                    f"HTTP download failed for {band.code}: {exc}"
+                ) from exc
+
+        try:
+            with rasterio.open(__import__("io").BytesIO(band_bytes)) as src:
+                raster_crs = src.crs
+
+                if raster_crs is None and band_asset is not None:
+                    proj_code = band_asset.get("proj:code")
+                    proj_transform = band_asset.get("proj:transform")
+                    proj_shape = band_asset.get("proj:shape")
+                    raster_profile = src.profile.copy()
+
+                    if proj_code:
+                        raster_crs = CRS.from_string(proj_code)
+
+                    if proj_transform:
+                        raster_transform = Affine(*proj_transform[:6])
+                    else:
+                        raster_transform = src.transform
+
+                    if proj_shape:
+                        raster_profile.update({
+                            "height": proj_shape[0],
+                            "width": proj_shape[1],
+                        })
+                else:
+                    raster_transform = src.transform
+                    raster_profile = src.profile.copy()
+
+                if raster_crs is None:
+                    raise DownloadError(
+                        f"Band {band.code} is missing CRS metadata."
+                    )
+
+                clip_geom = self._reproject_aoi(aoi, raster_crs)
+
+                if src.crs is not None:
+                    clipped_array, clipped_transform = rasterio.mask.mask(
+                        src,
+                        [mapping(clip_geom)],
+                        crop=True,
+                        nodata=0,
+                    )
+                    profile = src.profile.copy()
+                    clipped_array = clipped_array[0]  # (H, W)
+                else:
+                    array = src.read()
+                    raster_profile.update({
+                        "driver": "GTiff",
+                        "count": array.shape[0],
+                        "dtype": str(array.dtype),
+                        "crs": raster_crs,
+                        "transform": raster_transform,
+                    })
+
+                    with MemoryFile() as memfile:
+                        with memfile.open(**raster_profile) as dataset:
+                            dataset.write(array)
+                            clipped_arr, clipped_transform = rasterio.mask.mask(
+                                dataset,
+                                [mapping(clip_geom)],
+                                crop=True,
+                                nodata=0,
+                            )
+                            profile = dataset.profile.copy()
+
+                    clipped_array = clipped_arr[0]
+
+        except Exception as exc:
+            raise DownloadError(
+                f"Failed to clip band {band.code}: {exc}"
+            ) from exc
+
+        self._write_band_geotiff(
+            array=clipped_array,
+            crs=raster_crs,
+            transform=clipped_transform,
+            output_path=output_path,
+        )
+
+        logger.info(f"Band {band.code} downloaded (HTTP fallback): {output_path.name}")
+
+        return output_path
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _reproject_aoi(aoi: Polygon, target_crs: CRS) -> Polygon:
+        """
+        Reproject the AOI polygon from WGS84 to ``target_crs``.
+
+        Parameters
+        ----------
+        aoi : Polygon
+            WGS84 polygon.
+        target_crs : CRS
+
+        Returns
+        -------
+        Polygon
+        """
+
+        from pyproj import Transformer
+        from shapely.ops import transform as shapely_transform
+
+        target_epsg = target_crs.to_epsg()
+
+        if target_epsg == 4326:
+            return aoi
+
+        transformer = Transformer.from_crs(4326, target_crs, always_xy=True)
+        return shapely_transform(transformer.transform, aoi)
+
+    @staticmethod
+    def _write_band_geotiff(
+        array: np.ndarray,
+        crs: CRS,
+        transform: Affine,
+        output_path: Path,
+        compress: str = "lzw",
+        nodata: int = 0,
+    ) -> None:
+        """
+        Write a 2D numpy array as a single-band compressed GeoTIFF.
+        """
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        if array.ndim == 3:
+            array = array[0]
+
+        profile = {
+            "driver": "GTiff",
+            "dtype": str(array.dtype),
+            "width": array.shape[1],
+            "height": array.shape[0],
+            "count": 1,
+            "crs": crs,
+            "transform": transform,
+            "compress": compress,
+            "tiled": True,
+            "blockxsize": 256,
+            "blockysize": 256,
+            "nodata": nodata,
+        }
+
+        with rasterio.open(output_path, "w", **profile) as dst:
+            dst.write(array, 1)
 
     # ------------------------------------------------------------------
     # Available Bands

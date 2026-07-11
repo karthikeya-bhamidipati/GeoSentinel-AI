@@ -240,7 +240,11 @@ class ScenePredictor:
             map_location=device,
         )
 
-        model.load_state_dict(checkpoint["model_state_dict"])
+        # Handle both nested dictionaries (old style) and direct state_dicts (new style)
+        if "model_state_dict" in checkpoint:
+            model.load_state_dict(checkpoint["model_state_dict"])
+        else:
+            model.load_state_dict(checkpoint)
 
         logger.info(
             f"Loaded checkpoint: {checkpoint_path.name}"

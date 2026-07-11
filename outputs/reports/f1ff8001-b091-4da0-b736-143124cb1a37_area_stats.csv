@@ -1,0 +1,4 @@
+class_id,class_name,t1_area_km2,t2_area_km2,t1_pct,t2_pct,change_km2,change_pct
+0,Background,0.651,0.8093,52.03,64.68,0.1583,24.32
+1,Vegetation,0.096,0.1081,7.67,8.64,0.0121,12.6
+2,Urban,0.5043,0.3339,40.3,26.68,-0.1704,-33.79

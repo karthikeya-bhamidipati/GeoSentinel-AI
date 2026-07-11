@@ -2,17 +2,23 @@
 
 // =============================================================================
 // GeoSentinel AI — Main Page
+// Professional GIS application layout: Map-first, no landing page.
 // =============================================================================
 
+import { useState, useRef } from "react";
+import { useToast } from "@/hooks/useToast";
+import { ToastContainer } from "@/components/UI/Toast";
 import dynamic from "next/dynamic";
 import { useAnalysis } from "@/hooks/useAnalysis";
 import { useMap } from "@/hooks/useMap";
-import { AnalysisForm } from "@/components/Sidebar/AnalysisForm";
-import { ResultsDashboard } from "@/components/Dashboard/ResultsDashboard";
-import { StatusBar } from "@/components/UI/StatusBar";
+import { LeftSidebar } from "@/components/Layout/LeftSidebar";
+import { RightPanel } from "@/components/Layout/RightPanel";
+import { BottomStatusBar } from "@/components/Layout/BottomStatusBar";
+import { PipelineProgressOverlay } from "@/components/Map/PipelineProgressOverlay";
 import type { AnalysisRequest } from "@/types";
+import type { MapContainerRef } from "@/components/Map/MapContainer";
 
-// Leaflet must be imported dynamically (no SSR)
+// Leaflet must be dynamically imported (no SSR)
 const MapContainer = dynamic(
   () => import("@/components/Map/MapContainer").then((m) => m.MapContainer),
   { ssr: false }
@@ -21,6 +27,9 @@ const MapContainer = dynamic(
 export default function HomePage() {
   const analysis = useAnalysis();
   const map = useMap();
+  const mapContainerRef = useRef<MapContainerRef>(null);
+  const [mapZoom, setMapZoom] = useState<number>(11);
+  const { toasts, removeToast } = useToast();
 
   const handleSubmit = async (
     date1: string,
@@ -41,65 +50,102 @@ export default function HomePage() {
 
   return (
     <div className="app-layout">
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
       {/* ------------------------------------------------------------------ */}
-      {/* Header                                                              */}
+      {/* Header                                                               */}
       {/* ------------------------------------------------------------------ */}
       <header className="app-header">
-        <div className="header-logo">
-          <div className="header-logo-icon">🛰️</div>
+        <div className="app-header-logo">
+          <div className="app-header-logo-icon">
+            {/* Satellite icon */}
+            <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: 28, height: 28 }}>
+              <rect x="10" y="10" width="8" height="8" rx="1" fill="#60a5fa" />
+              <rect x="4" y="12" width="6" height="4" rx="0.5" fill="#93c5fd" />
+              <rect x="18" y="12" width="6" height="4" rx="0.5" fill="#93c5fd" />
+              <circle cx="14" cy="14" r="2" fill="#1d6fa4" />
+              <line x1="14" y1="2" x2="14" y2="7" stroke="#60a5fa" strokeWidth="1.5" strokeLinecap="round" />
+              <line x1="14" y1="21" x2="14" y2="26" stroke="#60a5fa" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </div>
           <div>
-            <div className="header-title">GeoSentinel AI</div>
-            <div className="header-subtitle">Hyderabad Metropolitan Region</div>
+            <div className="app-header-title">GeoSentinel AI</div>
+            <div className="app-header-subtitle">Hyderabad Metropolitan Region</div>
           </div>
         </div>
 
-        <div className="header-spacer" />
+        <div className="app-header-spacer" />
 
-        <div className="header-badge">Sentinel-2 L2A</div>
-        <div className="header-badge">CDSE</div>
+        <div style={{ display: "flex", gap: "var(--space-2)" }}>
+          <span className="app-header-badge">Sentinel-2 L2A</span>
+          <span className="app-header-badge">CDSE</span>
+          <span className="app-header-badge">EPSG:4326</span>
+        </div>
       </header>
 
       {/* ------------------------------------------------------------------ */}
-      {/* Sidebar                                                             */}
+      {/* Workspace                                                            */}
       {/* ------------------------------------------------------------------ */}
-      <aside className="app-sidebar">
-        <div className="scroll-area">
-          <AnalysisForm
-            onSubmit={handleSubmit}
-            hasAOI={!!map.drawnAOI}
-            isLoading={analysis.isLoading}
-            onClearAOI={map.clearAOI}
-          />
-        </div>
-      </aside>
+      <div className="app-workspace">
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Map                                                                 */}
-      {/* ------------------------------------------------------------------ */}
-      <main className="app-main">
-        <MapContainer
-          onAOIDrawn={map.setDrawnAOI}
-          onDrawingModeChange={map.setDrawingMode}
-          drawnAOI={map.drawnAOI}
+        {/* Left Navigation + Content Panels */}
+        <LeftSidebar
+          onSubmit={handleSubmit}
+          hasAOI={!!map.drawnAOI}
+          isLoading={analysis.isLoading}
+          onClearAOI={map.clearAOI}
+          onDrawAOI={() => {
+            const btn = document.getElementById("map-tool-draw-rect");
+            if (btn) btn.click();
+          }}
+          isDrawingMode={map.isDrawingMode}
+          result={analysis.result}
+          layers={map.layers}
+          toggleLayer={map.toggleLayer}
+          onLoadHistory={(job) => {
+            map.setDrawnAOI(job.aoi);
+            analysis.setResult(job);
+          }}
         />
 
-        {/* Results Dashboard Overlay */}
-        {analysis.result && (
-          <div className="dashboard-overlay">
-            <ResultsDashboard result={analysis.result} />
-          </div>
-        )}
-
-        {/* Status Bar */}
-        {(analysis.isLoading || analysis.status === "completed" || analysis.error) && (
-          <StatusBar
-            status={analysis.status}
-            message={analysis.progressMessage}
-            error={analysis.error}
-            onClose={analysis.reset}
+        {/* Map */}
+        <main className="app-main" role="main" aria-label="Geospatial map">
+          <MapContainer
+            ref={mapContainerRef}
+            onAOIDrawn={map.setDrawnAOI}
+            onDrawingModeChange={map.setDrawingMode}
+            onZoomChange={setMapZoom}
+            drawnAOI={map.drawnAOI}
+            layers={map.layers}
+            result={analysis.result}
           />
-        )}
-      </main>
+
+          {/* Pipeline progress overlay — appears on top of map during analysis */}
+          <PipelineProgressOverlay
+            isVisible={analysis.isLoading}
+            message={analysis.progressMessage}
+            completedSteps={analysis.progressSteps}
+          />
+        </main>
+
+        {/* Right Results Panel */}
+        <RightPanel
+          result={analysis.result}
+          isLoading={analysis.isLoading}
+          progressMessage={analysis.progressMessage}
+          jobId={analysis.jobId}
+        />
+      </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Bottom Status Bar                                                    */}
+      {/* ------------------------------------------------------------------ */}
+      <BottomStatusBar
+        status={analysis.status}
+        message={analysis.progressMessage}
+        error={analysis.error}
+        zoom={mapZoom}
+      />
     </div>
   );
 }

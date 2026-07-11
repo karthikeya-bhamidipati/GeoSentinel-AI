@@ -1,0 +1,549 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.46255944230265,
+          17.47259899638252
+        ]
+      },
+      "properties": {
+        "id": 1,
+        "area_pixels": 466,
+        "from_class": "Vegetation",
+        "to_class": "Background"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.4626200257228,
+          17.48858606645485
+        ]
+      },
+      "properties": {
+        "id": 2,
+        "area_pixels": 450,
+        "from_class": "Vegetation",
+        "to_class": "Agriculture"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.46122485481231,
+          17.494167941507367
+        ]
+      },
+      "properties": {
+        "id": 3,
+        "area_pixels": 443,
+        "from_class": "Vegetation",
+        "to_class": "Water"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.42245608695583,
+          17.47352789093389
+        ]
+      },
+      "properties": {
+        "id": 4,
+        "area_pixels": 342,
+        "from_class": "Vegetation",
+        "to_class": "Agriculture"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.43894861121359,
+          17.471844504427764
+        ]
+      },
+      "properties": {
+        "id": 5,
+        "area_pixels": 334,
+        "from_class": "Agriculture",
+        "to_class": "Vegetation"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.45610945726096,
+          17.489767203405027
+        ]
+      },
+      "properties": {
+        "id": 6,
+        "area_pixels": 267,
+        "from_class": "Vegetation",
+        "to_class": "Water"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.4606827733784,
+          17.48576144464292
+        ]
+      },
+      "properties": {
+        "id": 7,
+        "area_pixels": 226,
+        "from_class": "Water",
+        "to_class": "Vegetation"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.45887103880935,
+          17.480680470407123
+        ]
+      },
+      "properties": {
+        "id": 8,
+        "area_pixels": 177,
+        "from_class": "Water",
+        "to_class": "Vegetation"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.45931518793478,
+          17.48935666443053
+        ]
+      },
+      "properties": {
+        "id": 9,
+        "area_pixels": 167,
+        "from_class": "Water",
+        "to_class": "Vegetation"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.43908048134433,
+          17.482593893757794
+        ]
+      },
+      "properties": {
+        "id": 10,
+        "area_pixels": 163,
+        "from_class": "Water",
+        "to_class": "Vegetation"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.46173800967819,
+          17.49110369494756
+        ]
+      },
+      "properties": {
+        "id": 11,
+        "area_pixels": 137,
+        "from_class": "Vegetation",
+        "to_class": "Water"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.45913322583266,
+          17.47535506981141
+        ]
+      },
+      "properties": {
+        "id": 12,
+        "area_pixels": 135,
+        "from_class": "Water",
+        "to_class": "Vegetation"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.44833560317966,
+          17.48704824457019
+        ]
+      },
+      "properties": {
+        "id": 13,
+        "area_pixels": 121,
+        "from_class": "Vegetation",
+        "to_class": "Water"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.4597216992139,
+          17.49396807444853
+        ]
+      },
+      "properties": {
+        "id": 14,
+        "area_pixels": 117,
+        "from_class": "Water",
+        "to_class": "Vegetation"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.45864896982876,
+          17.483116210385873
+        ]
+      },
+      "properties": {
+        "id": 15,
+        "area_pixels": 114,
+        "from_class": "Vegetation",
+        "to_class": "Water"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.45426545502416,
+          17.473486404639946
+        ]
+      },
+      "properties": {
+        "id": 16,
+        "area_pixels": 113,
+        "from_class": "Agriculture",
+        "to_class": "Vegetation"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.41996146743321,
+          17.470244150633413
+        ]
+      },
+      "properties": {
+        "id": 17,
+        "area_pixels": 101,
+        "from_class": "Vegetation",
+        "to_class": "Agriculture"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.4387830173155,
+          17.483673857797527
+        ]
+      },
+      "properties": {
+        "id": 18,
+        "area_pixels": 99,
+        "from_class": "Vegetation",
+        "to_class": "Water"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.44801927488055,
+          17.489482742572388
+        ]
+      },
+      "properties": {
+        "id": 19,
+        "area_pixels": 96,
+        "from_class": "Background",
+        "to_class": "Vegetation"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.46263329696939,
+          17.467271169369212
+        ]
+      },
+      "properties": {
+        "id": 20,
+        "area_pixels": 81,
+        "from_class": "Vegetation",
+        "to_class": "Background"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.45542972557926,
+          17.47097242232781
+        ]
+      },
+      "properties": {
+        "id": 21,
+        "area_pixels": 78,
+        "from_class": "Agriculture",
+        "to_class": "Vegetation"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.45313741862864,
+          17.48015544673587
+        ]
+      },
+      "properties": {
+        "id": 22,
+        "area_pixels": 73,
+        "from_class": "Vegetation",
+        "to_class": "Agriculture"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.45968153452942,
+          17.496857729437497
+        ]
+      },
+      "properties": {
+        "id": 23,
+        "area_pixels": 72,
+        "from_class": "Water",
+        "to_class": "Vegetation"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.45643560528386,
+          17.493384087051027
+        ]
+      },
+      "properties": {
+        "id": 24,
+        "area_pixels": 64,
+        "from_class": "Water",
+        "to_class": "Vegetation"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.42293671314413,
+          17.472811598813337
+        ]
+      },
+      "properties": {
+        "id": 25,
+        "area_pixels": 63,
+        "from_class": "Vegetation",
+        "to_class": "Agriculture"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.42250441143496,
+          17.47009651768606
+        ]
+      },
+      "properties": {
+        "id": 26,
+        "area_pixels": 57,
+        "from_class": "Vegetation",
+        "to_class": "Agriculture"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.46211824565886,
+          17.497611447118974
+        ]
+      },
+      "properties": {
+        "id": 27,
+        "area_pixels": 56,
+        "from_class": "Background",
+        "to_class": "Vegetation"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.4589074141555,
+          17.478061718012377
+        ]
+      },
+      "properties": {
+        "id": 28,
+        "area_pixels": 55,
+        "from_class": "Water",
+        "to_class": "Vegetation"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.42535003349741,
+          17.47519109854978
+        ]
+      },
+      "properties": {
+        "id": 29,
+        "area_pixels": 55,
+        "from_class": "Vegetation",
+        "to_class": "Agriculture"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.45921847333787,
+          17.469214541217738
+        ]
+      },
+      "properties": {
+        "id": 30,
+        "area_pixels": 55,
+        "from_class": "Water",
+        "to_class": "Vegetation"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.45458853174627,
+          17.497605332062786
+        ]
+      },
+      "properties": {
+        "id": 31,
+        "area_pixels": 53,
+        "from_class": "Water",
+        "to_class": "Vegetation"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.45680710558845,
+          17.486976293663627
+        ]
+      },
+      "properties": {
+        "id": 32,
+        "area_pixels": 52,
+        "from_class": "Vegetation",
+        "to_class": "Water"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.42929082924212,
+          17.48942175806758
+        ]
+      },
+      "properties": {
+        "id": 33,
+        "area_pixels": 51,
+        "from_class": "Water",
+        "to_class": "Vegetation"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.452475174923,
+          17.473644094245785
+        ]
+      },
+      "properties": {
+        "id": 34,
+        "area_pixels": 51,
+        "from_class": "Agriculture",
+        "to_class": "Vegetation"
+      }
+    }
+  ]
+}

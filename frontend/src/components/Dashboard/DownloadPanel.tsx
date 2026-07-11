@@ -15,8 +15,18 @@ const DOWNLOAD_OPTIONS = [
   { key: "pdf", label: "PDF Report", icon: "📄" },
   { key: "csv", label: "Area Stats CSV", icon: "📊" },
   { key: "recommendations_csv", label: "Recommendations CSV", icon: "📋" },
-  { key: "mask_png", label: "Land Cover Map", icon: "🗺️" },
-  { key: "ndvi_delta_png", label: "NDVI Delta Map", icon: "🌿" },
+  { key: "image_t1_png", label: "T1 True Color (PNG)", icon: "🛰️" },
+  { key: "image_t2_png", label: "T2 True Color (PNG)", icon: "🛰️" },
+  { key: "mask_t1_png", label: "T1 Land Cover (PNG)", icon: "🗺️" },
+  { key: "mask_t2_png", label: "T2 Land Cover (PNG)", icon: "🗺️" },
+  { key: "ndvi_delta_png", label: "NDVI Delta Map (PNG)", icon: "🌿" },
+  { key: "ndbi_delta_png", label: "NDBI Delta Map (PNG)", icon: "🏢" },
+  { key: "mask_t1", label: "T1 Land Cover (GeoTIFF)", icon: "🗺️" },
+  { key: "mask_t2", label: "T2 Land Cover (GeoTIFF)", icon: "🗺️" },
+  { key: "ndvi_delta_tif", label: "NDVI Delta (GeoTIFF)", icon: "🌿" },
+  { key: "ndbi_delta_tif", label: "NDBI Delta (GeoTIFF)", icon: "🏢" },
+  { key: "hotspots_geojson", label: "Change Hotspots (GeoJSON)", icon: "📍" },
+  { key: "aoi_geojson", label: "AOI (GeoJSON)", icon: "📍" },
 ];
 
 export function DownloadPanel({ jobId, outputs }: DownloadPanelProps) {

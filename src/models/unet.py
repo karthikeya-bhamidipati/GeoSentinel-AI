@@ -13,15 +13,12 @@ Description:
     Architecture:
     - Encoder: ResNet34 (ImageNet pretrained, first conv adapted to N channels)
     - Decoder: Standard U-Net skip connections with transpose convolution
-    - Output: Softmax over 6 land cover classes
+    - Output: Softmax over 3 land cover classes
 
     Land Cover Classes:
     0 = Background / No Data
-    1 = Urban / Built-up
-    2 = Vegetation
-    3 = Water
-    4 = Bare Soil / Barren
-    5 = Agriculture
+    1 = Vegetation
+    2 = Urban
 
     Reference:
     Ronneberger, O., Fischer, P., & Brox, T. (2015). U-Net: Convolutional
@@ -86,7 +83,7 @@ LAND_COVER_COLORS: dict[int, tuple[int, int, int]] = {
 }
 
 NUM_CLASSES = len(LandCoverClass)
-DEFAULT_IN_CHANNELS = 12  # 5 bands + 7 indices
+DEFAULT_IN_CHANNELS = 12  # Single temporal stack
 
 
 # =============================================================================
@@ -227,69 +224,4 @@ class GeoSentinelUNet(nn.Module):
         )
 
 
-# =============================================================================
-# DeepLabV3+ (comparison model)
-# =============================================================================
 
-
-class GeoSentinelDeepLabV3Plus(nn.Module):
-    """
-    DeepLabV3+ land cover segmentation model.
-
-    Comparison model used to benchmark against U-Net.
-    Uses atrous spatial pyramid pooling (ASPP) and a ResNet50 encoder.
-
-    Reference:
-    Chen et al. (2018). Encoder-Decoder with Atrous Separable Convolution
-    for Semantic Image Segmentation. ECCV 2018.
-    """
-
-    def __init__(
-        self,
-        in_channels: int = DEFAULT_IN_CHANNELS,
-        num_classes: int = NUM_CLASSES,
-        encoder_name: str = "resnet50",
-        encoder_weights: str | None = "imagenet",
-    ) -> None:
-
-        super().__init__()
-
-        if not SMP_AVAILABLE:
-            raise ImportError(
-                "segmentation_models_pytorch is required."
-            )
-
-        self.in_channels = in_channels
-        self.num_classes = num_classes
-        self.encoder_name = encoder_name
-
-        self.model = smp.DeepLabV3Plus(
-            encoder_name=encoder_name,
-            encoder_weights=encoder_weights,
-            in_channels=in_channels,
-            classes=num_classes,
-            activation=None,
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.model(x)
-
-    def predict(self, x: torch.Tensor) -> torch.Tensor:
-        with torch.no_grad():
-            return torch.argmax(self.forward(x), dim=1)
-
-    def predict_proba(self, x: torch.Tensor) -> torch.Tensor:
-        with torch.no_grad():
-            return torch.softmax(self.forward(x), dim=1)
-
-    def parameter_count(self) -> int:
-        return sum(p.numel() for p in self.parameters() if p.requires_grad)
-
-    def __repr__(self) -> str:
-        return (
-            f"GeoSentinelDeepLabV3Plus("
-            f"encoder={self.encoder_name}, "
-            f"in={self.in_channels}, "
-            f"classes={self.num_classes}, "
-            f"params={self.parameter_count():,})"
-        )

@@ -1,0 +1,145 @@
+{
+  "job_id": "c86ffe7f-6510-4278-a808-2f3253899f66",
+  "status": "failed",
+  "progress_message": "boolean index did not match indexed array along axis 0; size of axis is 91 but size of corresponding boolean axis is 180",
+  "progress_steps": [
+    "aoi",
+    "search",
+    "download",
+    "preprocess",
+    "features",
+    "ai",
+    "temporal",
+    "area",
+    "stats"
+  ],
+  "created_at": "2026-07-09T13:03:50.675235+00:00",
+  "completed_at": "2026-07-09T13:04:24.085890+00:00",
+  "error": "boolean index did not match indexed array along axis 0; size of axis is 91 but size of corresponding boolean axis is 180",
+  "result": {
+    "job_id": "c86ffe7f-6510-4278-a808-2f3253899f66",
+    "aoi": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            78.45859414978294,
+            17.46120602933529
+          ],
+          [
+            78.48621892676523,
+            17.46120602933529
+          ],
+          [
+            78.48621892676523,
+            17.47700528977457
+          ],
+          [
+            78.45859414978294,
+            17.47700528977457
+          ],
+          [
+            78.45859414978294,
+            17.46120602933529
+          ]
+        ]
+      ]
+    },
+    "date1": "2016-01-09",
+    "date2": "2026-07-09",
+    "scene_t1_id": "S2A_MSIL2A_20151231T052352_N0500_R019_T44QKE_20231016T092811",
+    "scene_t2_id": "S2C_MSIL2A_20260616T050651_N0512_R019_T43QHV_20260616T100816",
+    "area_change": {
+      "rows": [
+        {
+          "class_id": 0,
+          "class_name": "Background",
+          "t1_area_km2": 0.586,
+          "t2_area_km2": 0.7278,
+          "t1_pct": 10.96,
+          "t2_pct": 13.61,
+          "change_km2": 0.1418,
+          "change_pct": 24.2
+        },
+        {
+          "class_id": 1,
+          "class_name": "Urban",
+          "t1_area_km2": 2.2942,
+          "t2_area_km2": 0.9908,
+          "t1_pct": 42.91,
+          "t2_pct": 18.53,
+          "change_km2": -1.3034,
+          "change_pct": -56.81
+        },
+        {
+          "class_id": 2,
+          "class_name": "Vegetation",
+          "t1_area_km2": 0.0,
+          "t2_area_km2": 0.0459,
+          "t1_pct": 0.0,
+          "t2_pct": 0.86,
+          "change_km2": 0.0459,
+          "change_pct": 0.0
+        },
+        {
+          "class_id": 3,
+          "class_name": "Water",
+          "t1_area_km2": 0.0,
+          "t2_area_km2": 0.0,
+          "t1_pct": 0.0,
+          "t2_pct": 0.0,
+          "change_km2": 0.0,
+          "change_pct": 0.0
+        },
+        {
+          "class_id": 4,
+          "class_name": "Barren",
+          "t1_area_km2": 2.4319,
+          "t2_area_km2": 3.466,
+          "t1_pct": 45.49,
+          "t2_pct": 64.83,
+          "change_km2": 1.0341,
+          "change_pct": 42.52
+        },
+        {
+          "class_id": 5,
+          "class_name": "Agriculture",
+          "t1_area_km2": 0.0339,
+          "t2_area_km2": 0.1155,
+          "t1_pct": 0.63,
+          "t2_pct": 2.16,
+          "change_km2": 0.0816,
+          "change_pct": 240.71
+        }
+      ],
+      "total_area_km2": 5.346
+    },
+    "temporal_stats": {
+      "ndvi_change": {
+        "mean_delta": 0.0273,
+        "gain_pct": 20.01,
+        "loss_pct": 6.13,
+        "stable_pct": 73.86
+      },
+      "ndbi_change": {
+        "mean_delta": -0.0693,
+        "urban_increase_pct": 14.85,
+        "urban_decrease_pct": 50.64,
+        "stable_pct": 34.51
+      },
+      "segmentation_change": {
+        "changed_pct": 41.11,
+        "urban_expansion_pixels": 3306,
+        "vegetation_loss_pixels": 0,
+        "water_loss_pixels": 0,
+        "num_hotspots": 21
+      }
+    },
+    "statistics": {},
+    "recommendations": [],
+    "outputs": {},
+    "metadata": {},
+    "success": false,
+    "error": "boolean index did not match indexed array along axis 0; size of axis is 91 but size of corresponding boolean axis is 180"
+  }
+}

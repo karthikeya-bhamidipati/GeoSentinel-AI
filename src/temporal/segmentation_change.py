@@ -150,6 +150,7 @@ class SegmentationChangeAnalyzer:
         self,
         mask_t1: np.ndarray,
         mask_t2: np.ndarray,
+        ml_change_mask: np.ndarray | None = None,
     ) -> SegmentationChangeResult:
         """
         Analyze segmentation change between two masks.
@@ -181,7 +182,14 @@ class SegmentationChangeAnalyzer:
             # Change mask
             # ----------------------------------------------------------
 
-            change_mask = mask_t1 != mask_t2
+            if ml_change_mask is not None:
+                # Use the advanced neural network change mask
+                change_mask = ml_change_mask > 0
+                # Overwrite mask_t2 where no physical change occurred, suppressing false positives
+                mask_t2 = np.where(~change_mask, mask_t1, mask_t2)
+            else:
+                change_mask = mask_t1 != mask_t2
+            
             total_pixels = mask_t1.size
             changed_pixels = int(change_mask.sum())
             changed_pct = changed_pixels / total_pixels * 100
@@ -226,9 +234,7 @@ class SegmentationChangeAnalyzer:
             # Water loss (Water → other)
             # ----------------------------------------------------------
 
-            water_loss_pixels = int(
-                (change_mask & (mask_t1 == LandCoverClass.WATER)).sum()
-            )
+            water_loss_pixels = 0
 
             # ----------------------------------------------------------
             # Hotspot detection

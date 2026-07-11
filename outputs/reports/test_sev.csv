@@ -1,0 +1,2 @@
+rule_id,category,severity,title,recommendation,why,priority
+URBAN_EXPANSION_HIGH,Urban,HIGH,Rapid Urban Expansion,Review zoning regulations.,Urban area increased by 20.5%.,3

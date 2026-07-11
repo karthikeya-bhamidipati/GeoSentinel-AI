@@ -1,0 +1,197 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.41793263582511,
+          17.493970763602736
+        ]
+      },
+      "properties": {
+        "id": 1,
+        "area_pixels": 627,
+        "from_class": "Agriculture",
+        "to_class": "Water"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.41402112929389,
+          17.47107009177377
+        ]
+      },
+      "properties": {
+        "id": 2,
+        "area_pixels": 474,
+        "from_class": "Agriculture",
+        "to_class": "Vegetation"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.40468007713574,
+          17.479437897039343
+        ]
+      },
+      "properties": {
+        "id": 3,
+        "area_pixels": 294,
+        "from_class": "Agriculture",
+        "to_class": "Agriculture"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.39017966064861,
+          17.49315622917459
+        ]
+      },
+      "properties": {
+        "id": 4,
+        "area_pixels": 170,
+        "from_class": "Agriculture",
+        "to_class": "Agriculture"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.4112035774582,
+          17.470672145258824
+        ]
+      },
+      "properties": {
+        "id": 5,
+        "area_pixels": 130,
+        "from_class": "Agriculture",
+        "to_class": "Agriculture"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.42095563123,
+          17.479830517293234
+        ]
+      },
+      "properties": {
+        "id": 6,
+        "area_pixels": 123,
+        "from_class": "Agriculture",
+        "to_class": "Agriculture"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.40614645842088,
+          17.488849784600024
+        ]
+      },
+      "properties": {
+        "id": 7,
+        "area_pixels": 117,
+        "from_class": "Agriculture",
+        "to_class": "Agriculture"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.38933399156255,
+          17.466683170802604
+        ]
+      },
+      "properties": {
+        "id": 8,
+        "area_pixels": 108,
+        "from_class": "Agriculture",
+        "to_class": "Agriculture"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.39055463218881,
+          17.47347274437646
+        ]
+      },
+      "properties": {
+        "id": 9,
+        "area_pixels": 100,
+        "from_class": "Agriculture",
+        "to_class": "Agriculture"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.40143252813425,
+          17.469551153850972
+        ]
+      },
+      "properties": {
+        "id": 10,
+        "area_pixels": 100,
+        "from_class": "Agriculture",
+        "to_class": "Agriculture"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.3879897399336,
+          17.48174790444895
+        ]
+      },
+      "properties": {
+        "id": 11,
+        "area_pixels": 59,
+        "from_class": "Agriculture",
+        "to_class": "Agriculture"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.39583998243938,
+          17.46577506335743
+        ]
+      },
+      "properties": {
+        "id": 12,
+        "area_pixels": 58,
+        "from_class": "Agriculture",
+        "to_class": "Agriculture"
+      }
+    }
+  ]
+}

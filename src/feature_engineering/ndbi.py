@@ -70,6 +70,12 @@ class NDBICalculator:
         swir1 = swir1.astype("float32")
         nir = nir.astype("float32")
 
+        if swir1.shape != nir.shape:
+            fy = max(1, round(nir.shape[0] / swir1.shape[0]))
+            fx = max(1, round(nir.shape[1] / swir1.shape[1]))
+            swir1 = np.repeat(np.repeat(swir1, fy, axis=0), fx, axis=1)
+            swir1 = swir1[:nir.shape[0], :nir.shape[1]]
+
         numerator = swir1 - nir
         denominator = swir1 + nir + epsilon
 

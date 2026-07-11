@@ -54,13 +54,13 @@ class TileMerger:
         # Accumulated probability scores (float64 for precision)
         self._score_canvas = np.zeros(
             (num_classes, output_height, output_width),
-            dtype=np.float64,
+            dtype=np.float32,
         )
 
         # Weight canvas: count of tiles covering each pixel
         self._weight_canvas = np.zeros(
             (output_height, output_width),
-            dtype=np.float64,
+            dtype=np.float32,
         )
 
     # ------------------------------------------------------------------

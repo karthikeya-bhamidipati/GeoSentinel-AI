@@ -15,13 +15,18 @@ Author:
 
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 
 import yaml
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.routes import router
+from backend.app.services import get_job_queue
 from src.utils.logger import logger
 from src.utils.paths import paths
 
@@ -36,21 +41,36 @@ async def lifespan(app: FastAPI):
     """
     Application lifespan events.
 
-    Startup: Log configuration and warm up dependencies.
-    Shutdown: Log clean shutdown.
+    Startup: Log configuration, warm up dependencies, start cleanup task.
+    Shutdown: Cancel cleanup task and log clean shutdown.
     """
 
     logger.info("GeoSentinel AI backend starting ...")
 
     # Ensure output directories exist
-    paths.create_all_directories()
+    paths.create_directories()
 
     logger.info(
         f"Project root: {paths.PROJECT_ROOT}"
     )
 
+    # Start periodic cleanup of old jobs
+    async def _cleanup_loop() -> None:
+        while True:
+            await asyncio.sleep(3600)  # every hour
+            try:
+                queue = get_job_queue()
+                removed = queue.cleanup_old_jobs(max_age_hours=24)
+                if removed:
+                    logger.info(f"Cleaned up {removed} old job(s).")
+            except Exception as exc:
+                logger.error(f"Job cleanup failed: {exc}")
+
+    cleanup_task = asyncio.create_task(_cleanup_loop())
+
     yield
 
+    cleanup_task.cancel()
     logger.info("GeoSentinel AI backend shutting down.")
 
 
@@ -66,7 +86,7 @@ def create_app() -> FastAPI:
 
     # Load API config
     api_config = {}
-    api_config_path = paths.CONFIGS_DIR / "api.yaml"
+    api_config_path = paths.CONFIG_DIR / "api.yaml"
 
     if api_config_path.exists():
         with open(api_config_path, "r") as f:
@@ -90,7 +110,7 @@ def create_app() -> FastAPI:
     # CORS
     # ------------------------------------------------------------------
 
-    cors_config_path = paths.CONFIGS_DIR / "api.yaml"
+    cors_config_path = paths.CONFIG_DIR / "api.yaml"
 
     cors_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
@@ -142,3 +162,7 @@ if __name__ == "__main__":
         reload=False,
         log_config=None,
     )
+
+# Trigger reload
+
+# Trigger reload 2

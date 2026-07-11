@@ -1,0 +1,12 @@
+# =============================================================================
+# GeoSentinel AI — Root Docker Compose Entry Point
+#
+# Usage:
+#   docker compose up --build
+#
+# This file delegates to docker/docker-compose.yml.
+# It exists so `docker compose up --build` works from the project root.
+# =============================================================================
+
+include:
+  - docker/docker-compose.yml

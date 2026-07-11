@@ -14,9 +14,20 @@ coordinate_system:
   projection: "WGS84"
 
 data:
-  provider: "local_safe"
+  # Primary: cdse  |  Fallback (offline dev): local_safe
+  provider: "cdse"
   cache_enabled: true
   cache_directory: "data/raw/cache"
+
+model:
+  type: "unet"
+  inference:
+    # Path relative to project root. Leave empty to use random weights (dev mode).
+    checkpoint_path: ""
+    device: "cpu"
+    tile_size: 256
+    overlap: 64
+
 
 sentinel:
   mission: "Sentinel-2"

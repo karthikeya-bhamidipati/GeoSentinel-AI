@@ -91,7 +91,7 @@ class TileExtractor:
         array : np.ndarray
             Shape (C, H, W).
         pad_if_needed : bool
-            If True, pads the array so it is divisible by tile_size.
+            If True, pads the array so it is at least tile_size.
 
         Returns
         -------
@@ -109,9 +109,21 @@ class TileExtractor:
             pad_h, pad_w = 0, 0
 
         tiles = []
+        
+        row_starts = list(range(0, H - self.tile_size + 1, self.stride))
+        if H > self.tile_size and (H - self.tile_size) % self.stride != 0:
+            row_starts.append(H - self.tile_size)
+        if not row_starts:
+            row_starts = [0]
+            
+        col_starts = list(range(0, W - self.tile_size + 1, self.stride))
+        if W > self.tile_size and (W - self.tile_size) % self.stride != 0:
+            col_starts.append(W - self.tile_size)
+        if not col_starts:
+            col_starts = [0]
 
-        for row in range(0, H - self.tile_size + 1, self.stride):
-            for col in range(0, W - self.tile_size + 1, self.stride):
+        for row in row_starts:
+            for col in col_starts:
 
                 tile_array = array[
                     :,
@@ -136,14 +148,14 @@ class TileExtractor:
         array: np.ndarray,
     ) -> tuple[np.ndarray, tuple[int, int]]:
         """
-        Pad an array to ensure full tile coverage.
+        Pad an array to ensure it is at least tile_size.
         """
 
         C, H, W = array.shape
         ts = self.tile_size
 
-        pad_h = (ts - H % ts) % ts
-        pad_w = (ts - W % ts) % ts
+        pad_h = max(0, ts - H)
+        pad_w = max(0, ts - W)
 
         if pad_h > 0 or pad_w > 0:
             array = np.pad(

@@ -1,5 +1,10 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
 
 export const metadata: Metadata = {
   title: "GeoSentinel AI — Urban & Vegetation Change Detection",
@@ -14,7 +19,6 @@ export const metadata: Metadata = {
     "land cover",
   ],
   authors: [{ name: "Karthikeya Bhamidipati" }],
-  viewport: "width=device-width, initial-scale=1",
   robots: "index, follow",
 };
 

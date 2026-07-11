@@ -44,6 +44,12 @@ class AOI:
         default_factory=lambda: CRS.from_epsg(4326)
     )
 
+    @classmethod
+    def from_geojson(cls, geojson_dict: dict) -> "AOI":
+        from shapely.geometry import shape
+        geometry = shape(geojson_dict)
+        return cls(geometry=geometry)
+
     # ------------------------------------------------------------------
     # Basic Properties
     # ------------------------------------------------------------------

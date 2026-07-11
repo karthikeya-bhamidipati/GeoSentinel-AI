@@ -22,7 +22,8 @@ from enum import Enum
 
 import torch.nn as nn
 
-from src.models.unet import GeoSentinelUNet, GeoSentinelDeepLabV3Plus
+from src.models.unet import GeoSentinelUNet
+from src.models.deeplabv3plus import GeoSentinelDeepLabV3Plus
 from src.models.losses import BCEDiceLoss, DiceLoss, FocalLoss
 from src.utils.logger import logger
 
@@ -63,7 +64,7 @@ class ModelFactory:
     Usage
     -----
     >>> factory = ModelFactory()
-    >>> model = factory.create_model("unet", in_channels=12, num_classes=6)
+    >>> model = factory.create_model("unet", in_channels=12, num_classes=3)
     >>> loss = factory.create_loss("dice_bce")
     """
 
@@ -75,7 +76,7 @@ class ModelFactory:
         self,
         model_type: str | ModelType,
         in_channels: int = 12,
-        num_classes: int = 6,
+        num_classes: int = 3,
         encoder_name: str = "resnet34",
         encoder_weights: str | None = "imagenet",
     ) -> nn.Module:
@@ -221,7 +222,7 @@ class ModelFactory:
         encoder = config.get("encoder", {}).get("backbone", "resnet34")
         pretrained = config.get("encoder", {}).get("pretrained", True)
         in_channels = config.get("input", {}).get("channels", 12)
-        num_classes = config.get("output", {}).get("classes", 6)
+        num_classes = config.get("output", {}).get("classes", 3)
         loss_name = config.get("training", {}).get("loss", "dice_bce")
 
         model = self.create_model(

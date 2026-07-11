@@ -132,6 +132,7 @@ class JobStatusResponse(BaseModel):
     job_id: str
     status: JobStatus
     progress_message: str = ""
+    progress_steps: list[str] = Field(default_factory=list)
     created_at: Optional[str] = None
     completed_at: Optional[str] = None
     error: Optional[str] = None
@@ -173,12 +174,12 @@ class AnalysisResultResponse(BaseModel):
     date2: str
     scene_t1_id: str = ""
     scene_t2_id: str = ""
-    area_change: dict[str, Any] = {}
-    temporal_stats: dict[str, Any] = {}
-    statistics: dict[str, Any] = {}
-    recommendations: list[dict[str, Any]] = []
-    outputs: dict[str, str] = {}
-    metadata: dict[str, Any] = {}
+    area_change: dict[str, Any] = Field(default_factory=dict)
+    temporal_stats: dict[str, Any] = Field(default_factory=dict)
+    statistics: dict[str, Any] = Field(default_factory=dict)
+    recommendations: list[dict[str, Any]] = Field(default_factory=list)
+    outputs: dict[str, str] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
     error: Optional[str] = None
 
 

@@ -146,6 +146,12 @@ class CloudMasker:
 
         result = data_array.astype("float32")
 
+        if data_array.shape[:2] != cloud_mask.shape[:2]:
+            factor_y = max(1, round(data_array.shape[0] / cloud_mask.shape[0]))
+            factor_x = max(1, round(data_array.shape[1] / cloud_mask.shape[1]))
+            resized_mask = np.repeat(np.repeat(cloud_mask, factor_y, axis=0), factor_x, axis=1)
+            cloud_mask = resized_mask[:data_array.shape[0], :data_array.shape[1]]
+
         if result.ndim == 2:
             result[cloud_mask] = self.nodata_value
 

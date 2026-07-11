@@ -19,6 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import numpy as np
+from scipy.ndimage import zoom
 
 
 @dataclass
@@ -119,23 +120,35 @@ class FeatureStackBuilder:
         FeatureStack
         """
 
+        EXPECTED_CHANNELS = ["B02", "B03", "B04", "B08", "B11", "NDVI", "NDBI", "NDWI", "SAVI", "EVI", "MNDWI", "BSI"]
         channel_names = []
         arrays = []
+        
+        all_features = {**bands, **indices}
+        for name in EXPECTED_CHANNELS:
+            if name in all_features:
+                channel_names.append(name)
+                arr_2d = all_features[name].squeeze()
+                arrays.append(arr_2d.astype("float32"))
+            else:
+                raise ValueError(f"Missing required channel for inference: {name}")
 
-        for name, arr in {**bands, **indices}.items():
-            channel_names.append(name)
-            arr_2d = arr.squeeze()
-            arrays.append(arr_2d.astype("float32"))
+        # Find the maximum shape (target 10m resolution)
+        max_h = max(a.shape[0] for a in arrays)
+        max_w = max(a.shape[1] for a in arrays)
 
-        # Verify all arrays are the same shape
-        shapes = [a.shape for a in arrays]
-        if len(set(shapes)) > 1:
-            raise ValueError(
-                f"All channels must have the same spatial shape. "
-                f"Got: {dict(zip(channel_names, shapes))}"
-            )
+        # Resize all arrays to max shape
+        resized_arrays = []
+        for arr in arrays:
+            if arr.shape[0] != max_h or arr.shape[1] != max_w:
+                zoom_y = max_h / arr.shape[0]
+                zoom_x = max_w / arr.shape[1]
+                arr = zoom(arr, (zoom_y, zoom_x), order=0)  # order=0 = nearest-neighbor
+                # Safety crop in case of floating-point rounding
+                arr = arr[:max_h, :max_w]
+            resized_arrays.append(arr)
 
-        stacked = np.stack(arrays, axis=0)
+        stacked = np.stack(resized_arrays, axis=0)
 
         # Replace NaN with 0 for model input
         stacked = np.nan_to_num(stacked, nan=0.0)

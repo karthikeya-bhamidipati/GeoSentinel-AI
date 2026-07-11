@@ -26,6 +26,7 @@ from src.eo.exceptions import FeatureEngineeringError
 from src.feature_engineering.ndvi import NDVICalculator
 from src.feature_engineering.ndbi import NDBICalculator
 from src.feature_engineering.ndwi import NDWICalculator
+from src.feature_engineering.mndwi import MNDWI
 from src.feature_engineering.evi import EVICalculator
 from src.feature_engineering.savi import SAVICalculator
 from src.feature_engineering.msavi import MSAVICalculator
@@ -68,20 +69,6 @@ class FeatureEngineeringPipeline:
     """
     Computes all spectral indices from a SentinelScene and builds
     a multi-channel FeatureStack.
-
-    Indices computed (from Master Spec):
-    - NDVI  — vegetation
-    - NDBI  — built-up / urban
-    - NDWI  — water
-    - EVI   — enhanced vegetation
-    - SAVI  — soil-adjusted vegetation
-    - MSAVI — modified soil-adjusted vegetation
-    - BSI   — bare soil
-
-    Plus spectral bands:
-    - B02 (BLUE), B03 (GREEN), B04 (RED), B08 (NIR), B11 (SWIR1)
-
-    Total input channels = 5 bands + 7 indices = 12 channels.
     """
 
     def __init__(self) -> None:
@@ -89,6 +76,7 @@ class FeatureEngineeringPipeline:
         self._ndvi = NDVICalculator()
         self._ndbi = NDBICalculator()
         self._ndwi = NDWICalculator()
+        self._mndwi = MNDWI()
         self._evi = EVICalculator()
         self._savi = SAVICalculator()
         self._msavi = MSAVICalculator()
@@ -103,29 +91,11 @@ class FeatureEngineeringPipeline:
     ) -> FeatureEngineeringResult:
         """
         Compute all indices and build the feature stack.
-
-        Parameters
-        ----------
-        scene : SentinelScene
-            A preprocessed scene (normalized, cloud-masked).
-
-        Returns
-        -------
-        FeatureEngineeringResult
-
-        Raises
-        ------
-        FeatureEngineeringError
-            If any index computation fails.
         """
 
         logger.info(
             f"Computing spectral features: {scene.product_name}"
         )
-
-        # ----------------------------------------------------------
-        # Step 1: Extract spectral band arrays
-        # ----------------------------------------------------------
 
         bands: dict[str, np.ndarray] = {}
 
@@ -139,16 +109,13 @@ class FeatureEngineeringPipeline:
                 )
                 bands[band.code] = np.zeros((1, 1), dtype="float32")
 
-        # ----------------------------------------------------------
-        # Step 2: Compute spectral indices
-        # ----------------------------------------------------------
-
         indices: dict[str, np.ndarray] = {}
 
         calculators = [
             ("NDVI", self._ndvi),
             ("NDBI", self._ndbi),
             ("NDWI", self._ndwi),
+            ("MNDWI", self._mndwi),
             ("EVI", self._evi),
             ("SAVI", self._savi),
             ("MSAVI", self._msavi),

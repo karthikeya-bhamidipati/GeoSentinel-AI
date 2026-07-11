@@ -4,13 +4,15 @@
 // GeoSentinel AI — Analysis Form
 // =============================================================================
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface AnalysisFormProps {
   onSubmit: (date1: string, date2: string, maxCloudCover: number) => void;
   hasAOI: boolean;
   isLoading: boolean;
   onClearAOI: () => void;
+  onDrawAOI: () => void;
+  isDrawingMode: boolean;
 }
 
 export function AnalysisForm({
@@ -18,10 +20,21 @@ export function AnalysisForm({
   hasAOI,
   isLoading,
   onClearAOI,
+  onDrawAOI,
+  isDrawingMode,
 }: AnalysisFormProps) {
-  const [date1, setDate1] = useState("2023-01-15");
-  const [date2, setDate2] = useState("2024-01-15");
+  const [date1, setDate1] = useState("");
+  const [date2, setDate2] = useState("");
   const [maxCloudCover, setMaxCloudCover] = useState(10);
+
+  useEffect(() => {
+    const today = new Date();
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(today.getMonth() - 6);
+    
+    setDate2(today.toISOString().split('T')[0]);
+    setDate1(sixMonthsAgo.toISOString().split('T')[0]);
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,35 +87,67 @@ export function AnalysisForm({
               <span>✓</span>
               <span>AOI defined</span>
             </div>
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={onClearAOI}
-              type="button"
-            >
-              Clear
-            </button>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={onDrawAOI}
+                type="button"
+                style={{ color: "var(--color-primary)" }}
+              >
+                Redraw
+              </button>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={onClearAOI}
+                type="button"
+              >
+                Clear
+              </button>
+            </div>
           </div>
         ) : (
-          <p
-            style={{
-              fontSize: "0.8rem",
-              color: "var(--color-text-muted)",
-              fontStyle: "italic",
-            }}
-          >
-            Click "Draw AOI" on the map to define your study area.
-          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <p
+              style={{
+                fontSize: "0.8rem",
+                color: "var(--color-text-muted)",
+              }}
+            >
+              Define your study area to begin analysis.
+            </p>
+            <button
+              type="button"
+              className={`btn btn-full ${isDrawingMode ? 'btn-secondary' : 'btn-primary'}`}
+              onClick={onDrawAOI}
+            >
+              {isDrawingMode ? "Cancel Drawing" : "📍 Select Area of Interest"}
+            </button>
+          </div>
         )}
       </div>
 
       {/* Analysis Parameters */}
       <form onSubmit={handleSubmit}>
         <div className="panel" style={{ marginBottom: "1rem" }}>
-          <div className="panel-title">Time Period</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+            <div className="panel-title" style={{ marginBottom: 0 }}>Time Period</div>
+            <div
+              title="The pipeline will automatically search for the most cloud-free images within a 30-day window around these dates."
+              style={{ fontSize: "12px", cursor: "help", color: "var(--color-text-muted)", borderBottom: "1px dotted" }}
+            >
+              How it works
+            </div>
+          </div>
 
           <div className="form-group">
             <label className="form-label" htmlFor="date1">
               Date 1 (T1 — Earlier)
+              <span
+                title="The earlier date. The system will find the best cloud-free Sentinel-2 image within 30 days of this date."
+                style={{ cursor: "help" }}
+              >
+                ℹ️
+              </span>
             </label>
             <input
               id="date1"
@@ -117,6 +162,12 @@ export function AnalysisForm({
           <div className="form-group">
             <label className="form-label" htmlFor="date2">
               Date 2 (T2 — Later)
+              <span
+                title="The later date. Changes between T1 and T2 will be analyzed."
+                style={{ cursor: "help" }}
+              >
+                ℹ️
+              </span>
             </label>
             <input
               id="date2"
@@ -135,6 +186,12 @@ export function AnalysisForm({
           <div className="form-group">
             <label className="form-label" htmlFor="cloud-cover">
               Max Cloud Cover: {maxCloudCover}%
+              <span
+                title="Maximum percentage of cloud coverage allowed in satellite imagery. Lower values mean clearer images but fewer available scenes."
+                style={{ cursor: "help" }}
+              >
+                ℹ️
+              </span>
             </label>
             <input
               id="cloud-cover"

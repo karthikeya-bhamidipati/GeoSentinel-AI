@@ -74,3 +74,4 @@ logs/
 *.swo
 .DS_Store
 Thumbs.db
+data/benchmark/

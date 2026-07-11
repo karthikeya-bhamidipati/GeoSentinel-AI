@@ -36,6 +36,7 @@ export interface JobStatusResponse {
   job_id: string;
   status: JobStatus;
   progress_message: string;
+  progress_steps: string[];
   created_at?: string;
   completed_at?: string;
   error?: string;
@@ -120,10 +121,10 @@ export interface MapBounds {
 
 // HMR bounding box (Hyderabad Metropolitan Region)
 export const HMR_BOUNDS: MapBounds = {
-  minLat: 16.8,
-  minLng: 77.8,
-  maxLat: 18.0,
-  maxLng: 79.1,
+  minLat: 15.44,
+  minLng: 76.38,
+  maxLat: 19.36,
+  maxLng: 80.52,
 };
 
 export const HMR_CENTER: LatLng = {
@@ -142,7 +143,7 @@ export const LAND_COVER_CLASSES: Record<
   0: { name: "Background", color: "#000000" },
   1: { name: "Urban", color: "#DC143C" },
   2: { name: "Vegetation", color: "#228B22" },
-  3: { name: "Water", color: "#1E90FF" },
+  3: { name: "Water", color: "#4169E1" },
   4: { name: "Barren", color: "#D2B48C" },
-  5: { name: "Agriculture", color: "#FFD700" },
+  5: { name: "Agriculture", color: "#DAA520" },
 };

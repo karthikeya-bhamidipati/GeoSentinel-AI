@@ -1,0 +1,252 @@
+{
+  "job_id": "8b777df1-fa3d-462a-be94-282aa3d6fdb0",
+  "status": "completed",
+  "progress_message": "Completed",
+  "progress_steps": [
+    "aoi",
+    "search",
+    "download",
+    "preprocess",
+    "features",
+    "ai",
+    "temporal",
+    "area",
+    "stats",
+    "recommendations",
+    "report"
+  ],
+  "created_at": "2026-07-11T08:06:48.642145+00:00",
+  "completed_at": "2026-07-11T08:08:27.557313+00:00",
+  "error": null,
+  "result": {
+    "job_id": "8b777df1-fa3d-462a-be94-282aa3d6fdb0",
+    "aoi": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            78.38698694984332,
+            17.464358963232858
+          ],
+          [
+            78.4235340150435,
+            17.464358963232858
+          ],
+          [
+            78.4235340150435,
+            17.495177994355007
+          ],
+          [
+            78.38698694984332,
+            17.495177994355007
+          ],
+          [
+            78.38698694984332,
+            17.464358963232858
+          ]
+        ]
+      ]
+    },
+    "date1": "2016-01-11",
+    "date2": "2026-01-11",
+    "scene_t1_id": "S2A_MSIL2A_20151231T052352_N0500_R019_T44QKE_20231016T092811",
+    "scene_t2_id": "S2C_MSIL2A_20260107T051211_N0511_R019_T43QHV_20260107T082109",
+    "area_change": {
+      "rows": [
+        {
+          "class_id": 0,
+          "class_name": "Background",
+          "t1_area_km2": 0.4762,
+          "t2_area_km2": 0.9941,
+          "t1_pct": 3.48,
+          "t2_pct": 7.27,
+          "change_km2": 0.5179,
+          "change_pct": 108.76
+        },
+        {
+          "class_id": 1,
+          "class_name": "Urban",
+          "t1_area_km2": 0.011,
+          "t2_area_km2": 0.0003,
+          "t1_pct": 0.08,
+          "t2_pct": 0.0,
+          "change_km2": -0.0107,
+          "change_pct": -97.27
+        },
+        {
+          "class_id": 2,
+          "class_name": "Vegetation",
+          "t1_area_km2": 0.0325,
+          "t2_area_km2": 0.0652,
+          "t1_pct": 0.24,
+          "t2_pct": 0.48,
+          "change_km2": 0.0327,
+          "change_pct": 100.62
+        },
+        {
+          "class_id": 3,
+          "class_name": "Water",
+          "t1_area_km2": 0.126,
+          "t2_area_km2": 0.524,
+          "t1_pct": 0.92,
+          "t2_pct": 3.83,
+          "change_km2": 0.398,
+          "change_pct": 315.87
+        },
+        {
+          "class_id": 4,
+          "class_name": "Barren",
+          "t1_area_km2": 0.0466,
+          "t2_area_km2": 0.0117,
+          "t1_pct": 0.34,
+          "t2_pct": 0.09,
+          "change_km2": -0.0349,
+          "change_pct": -74.89
+        },
+        {
+          "class_id": 5,
+          "class_name": "Agriculture",
+          "t1_area_km2": 12.9795,
+          "t2_area_km2": 12.0765,
+          "t1_pct": 94.94,
+          "t2_pct": 88.33,
+          "change_km2": -0.903,
+          "change_pct": -6.96
+        }
+      ],
+      "total_area_km2": 13.6718
+    },
+    "temporal_stats": {
+      "ndvi_change": {
+        "mean_delta": 0.0269,
+        "gain_pct": 21.43,
+        "loss_pct": 9.64,
+        "stable_pct": 68.94
+      },
+      "ndbi_change": {
+        "mean_delta": -0.0536,
+        "urban_increase_pct": 19.34,
+        "urban_decrease_pct": 51.86,
+        "stable_pct": 28.79
+      },
+      "segmentation_change": {
+        "changed_pct": 1.82,
+        "urban_expansion_pixels": 0,
+        "vegetation_loss_pixels": 0,
+        "water_loss_pixels": 0,
+        "num_hotspots": 12
+      }
+    },
+    "statistics": {
+      "NDVI": {
+        "t1_mean": 0.1349,
+        "t2_mean": 0.1602,
+        "delta": 0.0253,
+        "direction": "increase"
+      },
+      "NDBI": {
+        "t1_mean": 0.0359,
+        "t2_mean": -0.0126,
+        "delta": -0.0485,
+        "direction": "decrease"
+      },
+      "NDWI": {
+        "t1_mean": -0.1744,
+        "t2_mean": -0.1865,
+        "delta": -0.012,
+        "direction": "decrease"
+      },
+      "MNDWI": {
+        "t1_mean": -0.2082,
+        "t2_mean": -0.1734,
+        "delta": 0.0348,
+        "direction": "increase"
+      },
+      "EVI": {
+        "t1_mean": 0.1374,
+        "t2_mean": 0.1616,
+        "delta": 0.0242,
+        "direction": "increase"
+      },
+      "SAVI": {
+        "t1_mean": 0.1029,
+        "t2_mean": 0.1206,
+        "delta": 0.0177,
+        "direction": "increase"
+      },
+      "MSAVI": {
+        "t1_mean": 0.0945,
+        "t2_mean": 0.1115,
+        "delta": 0.017,
+        "direction": "increase"
+      },
+      "BSI": {
+        "t1_mean": 0.0631,
+        "t2_mean": 0.0345,
+        "delta": -0.0286,
+        "direction": "decrease"
+      },
+      "vegetation_health": "stable",
+      "urban_pressure": "moderate"
+    },
+    "recommendations": [
+      {
+        "rule_id": "URBAN_EXP_RAPID",
+        "category": "Urban",
+        "severity": "HIGH",
+        "title": "Rapid Urban Expansion Detected",
+        "recommendation": "Rapid urbanization is occurring in the study area. Engage HMDA (Hyderabad Metropolitan Development Authority) to review Master Plan compliance. Prioritize green buffer zones and ensure infrastructure (roads, water, drainage) is upgraded proportionally.",
+        "why": "Urban cover increased by 9.6% (1.27 km\u00b2) between 2016-01-11 and 2026-01-11, exceeding the rapid-expansion threshold of 10%.",
+        "priority": 3
+      },
+      {
+        "rule_id": "HOTSPOT",
+        "category": "Change Hotspot",
+        "severity": "HIGH",
+        "title": "Land Cover Change Hotspots Identified",
+        "recommendation": "Concentrated change hotspots have been identified. These may indicate targeted development activity or environmental disturbance. Dispatch field teams to highest-priority locations for immediate ground verification and documentation.",
+        "why": "12 change hotspot(s) were detected, each exceeding 0.5 km\u00b2. The largest hotspot covers 0.06 km\u00b2 centered at 17.3850\u00b0N, 78.4867\u00b0E.",
+        "priority": 3
+      }
+    ],
+    "outputs": {
+      "mask_t1": "C:\\Users\\karth\\Desktop\\GeoSentinel-AI\\outputs\\reports\\8b777df1-fa3d-462a-be94-282aa3d6fdb0_mask_t1.tif",
+      "mask_t2": "C:\\Users\\karth\\Desktop\\GeoSentinel-AI\\outputs\\reports\\8b777df1-fa3d-462a-be94-282aa3d6fdb0_mask_t2.tif",
+      "ndvi_delta_tif": "C:\\Users\\karth\\Desktop\\GeoSentinel-AI\\outputs\\reports\\8b777df1-fa3d-462a-be94-282aa3d6fdb0_ndvi_delta.tif",
+      "ndbi_delta_tif": "C:\\Users\\karth\\Desktop\\GeoSentinel-AI\\outputs\\reports\\8b777df1-fa3d-462a-be94-282aa3d6fdb0_ndbi_delta.tif",
+      "aoi_geojson": "C:\\Users\\karth\\Desktop\\GeoSentinel-AI\\outputs\\reports\\8b777df1-fa3d-462a-be94-282aa3d6fdb0_aoi.geojson",
+      "hotspots_geojson": "C:\\Users\\karth\\Desktop\\GeoSentinel-AI\\outputs\\reports\\8b777df1-fa3d-462a-be94-282aa3d6fdb0_hotspots.geojson",
+      "mask_t1_png": "C:\\Users\\karth\\Desktop\\GeoSentinel-AI\\outputs\\figures\\8b777df1-fa3d-462a-be94-282aa3d6fdb0_mask_t1.png",
+      "mask_t2_png": "C:\\Users\\karth\\Desktop\\GeoSentinel-AI\\outputs\\figures\\8b777df1-fa3d-462a-be94-282aa3d6fdb0_mask_t2.png",
+      "image_t1_png": "C:\\Users\\karth\\Desktop\\GeoSentinel-AI\\outputs\\figures\\8b777df1-fa3d-462a-be94-282aa3d6fdb0_image_t1.png",
+      "image_t2_png": "C:\\Users\\karth\\Desktop\\GeoSentinel-AI\\outputs\\figures\\8b777df1-fa3d-462a-be94-282aa3d6fdb0_image_t2.png",
+      "ndvi_delta_png": "C:\\Users\\karth\\Desktop\\GeoSentinel-AI\\outputs\\figures\\8b777df1-fa3d-462a-be94-282aa3d6fdb0_ndvi_delta.png",
+      "ndbi_delta_png": "C:\\Users\\karth\\Desktop\\GeoSentinel-AI\\outputs\\figures\\8b777df1-fa3d-462a-be94-282aa3d6fdb0_ndbi_delta.png",
+      "csv": "C:\\Users\\karth\\Desktop\\GeoSentinel-AI\\outputs\\reports\\8b777df1-fa3d-462a-be94-282aa3d6fdb0_area_stats.csv",
+      "recommendations_csv": "C:\\Users\\karth\\Desktop\\GeoSentinel-AI\\outputs\\reports\\8b777df1-fa3d-462a-be94-282aa3d6fdb0_recommendations.csv",
+      "pdf": "C:\\Users\\karth\\Desktop\\GeoSentinel-AI\\outputs\\reports\\8b777df1-fa3d-462a-be94-282aa3d6fdb0_report.pdf"
+    },
+    "metadata": {
+      "elapsed_seconds": 98.9,
+      "date1": "2016-01-11",
+      "date2": "2026-01-11",
+      "scene_t1_id": "S2A_MSIL2A_20151231T052352_N0500_R019_T44QKE_20231016T092811",
+      "scene_t2_id": "S2C_MSIL2A_20260107T051211_N0511_R019_T43QHV_20260107T082109",
+      "cloud_cover_t1": 0.0,
+      "cloud_cover_t2": 0.0,
+      "acquisition_date_t1": "2015-12-31",
+      "acquisition_date_t2": "2026-01-07",
+      "cloud_mask_t1_pct": 3.83,
+      "cloud_mask_t2_pct": 4.71,
+      "preprocessing_steps": [
+        "cloud_masking",
+        "resampling",
+        "normalization"
+      ],
+      "crs": "EPSG:32644",
+      "pixel_resolution_m": 10.0
+    },
+    "success": true,
+    "error": null
+  }
+}

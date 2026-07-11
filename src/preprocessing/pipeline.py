@@ -9,11 +9,15 @@ Description:
     Preprocessing pipeline that chains all preprocessing steps.
 
     Ordered steps:
-    1. Clip to AOI
-    2. Cloud masking (SCL)
-    3. Resample to target resolution
-    4. Spatial alignment (for T2 scenes, align to T1)
-    5. Band normalization (DN → reflectance)
+    1. Cloud masking (SCL-based)
+    2. Resample all bands to target resolution (10 m)
+       - 10m bands: B02, B03, B04, B08  → no-op
+       - 20m bands: B11, B12, SCL       → 2× upsampled via bilinear
+    3. Spatial alignment (for T2 scenes, co-register pixel grid to T1)
+    4. Band normalization (DN / 10 000 → [0, 1] surface reflectance)
+
+    Note: AOI clipping is performed at download time by CDSEProvider
+    via windowed /vsicurl/ streaming, so it is NOT repeated here.
 
 Author:
     Karthikeya Bhamidipati
@@ -28,7 +32,7 @@ from typing import Optional
 
 import numpy as np
 
-from src.eo.aoi.geometry import AOI
+from src.eo.models.bands import AI_BANDS, Band
 from src.eo.models.scene import SentinelScene
 from src.eo.exceptions import PreprocessingError
 from src.preprocessing.clip import RasterClipper
@@ -39,6 +43,10 @@ from src.preprocessing.normalize import BandNormalizer
 from src.utils.logger import logger
 
 
+# Target output resolution for all bands
+TARGET_RESOLUTION_M: float = 10.0
+
+
 @dataclass
 class PreprocessingResult:
     """
@@ -47,13 +55,13 @@ class PreprocessingResult:
     Attributes
     ----------
     scene : SentinelScene
-        The fully preprocessed scene.
+        The fully preprocessed scene (cloud-masked, 10m, aligned, normalised).
     cloud_mask : np.ndarray
-        Boolean array indicating masked pixels.
+        Boolean array indicating masked pixels (True = cloud/shadow).
     cloud_coverage_pct : float
-        Percentage of cloud-contaminated pixels.
+        Percentage of cloud-contaminated pixels in the AOI.
     steps_applied : list[str]
-        Names of preprocessing steps applied.
+        Names of preprocessing steps applied in order.
     """
 
     scene: SentinelScene
@@ -67,20 +75,20 @@ class PreprocessingPipeline:
     Chains all Sentinel-2 preprocessing steps into a single workflow.
 
     Steps applied (in order):
-    1. Cloud masking (SCL-based)
-    2. Resampling to target resolution
-    3. Spatial alignment (optional — for T2 scenes vs. T1 reference)
-    4. Band normalization (DN / 10000)
+    1. Cloud masking  — SCL-based pixel masking
+    2. Resampling     — all bands upsampled / downsampled to 10 m
+    3. Alignment      — (optional) pixel-grid co-registration to T1 reference
+    4. Normalization  — DN / 10 000 → [0, 1] surface reflectance
 
-    Note: AOI clipping is performed at download time by CDSEProvider,
-    so it is not repeated here.
+    Note: AOI clipping is performed upstream by CDSEProvider
+    (windowed /vsicurl/ streaming), so it is NOT repeated here.
 
     This class does not perform feature engineering or AI inference.
     """
 
     def __init__(
         self,
-        target_resolution_m: float = 10.0,
+        target_resolution_m: float = TARGET_RESOLUTION_M,
         apply_cloud_mask: bool = True,
         apply_normalization: bool = True,
     ) -> None:
@@ -111,8 +119,10 @@ class PreprocessingPipeline:
         scene : SentinelScene
             The scene to preprocess.
         reference_scene : SentinelScene | None
-            Optional reference scene. If provided, the scene is spatially
-            aligned to the reference (used for T2 alignment to T1).
+            Optional reference scene for spatial alignment.
+            When provided (T2 processing) the scene is co-registered
+            to the reference scene's pixel grid so both scenes are
+            spatially aligned before feature engineering.
 
         Returns
         -------
@@ -124,7 +134,7 @@ class PreprocessingPipeline:
             If any step fails.
         """
 
-        steps_applied = []
+        steps_applied: list[str] = []
         cloud_mask = np.zeros((1, 1), dtype=bool)
         cloud_coverage_pct = 0.0
 
@@ -133,33 +143,63 @@ class PreprocessingPipeline:
         )
 
         # ----------------------------------------------------------
-        # Step 1: Cloud Masking
+        # Step 1: Cloud Masking (SCL-based)
         # ----------------------------------------------------------
 
         if self.apply_cloud_mask:
-            scene, cloud_mask = self._cloud_masker.mask_scene(scene)
-            cloud_coverage_pct = float(cloud_mask.mean() * 100)
-            steps_applied.append("cloud_masking")
+            try:
+                scene, cloud_mask = self._cloud_masker.mask_scene(scene)
+                cloud_coverage_pct = float(cloud_mask.mean() * 100)
+                steps_applied.append("cloud_masking")
 
-            logger.info(
-                f"Cloud mask: {cloud_coverage_pct:.1f}% masked"
+                logger.info(
+                    f"Cloud mask applied: {cloud_coverage_pct:.1f}% masked"
+                )
+
+            except Exception as exc:
+                logger.warning(
+                    f"Cloud masking failed: {exc}. Continuing without mask."
+                )
+
+        # ----------------------------------------------------------
+        # Step 2: Resampling — harmonise all bands to TARGET_RESOLUTION_M
+        # ----------------------------------------------------------
+
+        try:
+            scene = self._resample_scene(scene)
+            steps_applied.append("resampling")
+
+        except Exception as exc:
+            logger.warning(
+                f"Resampling failed: {exc}. Using native resolutions."
             )
 
         # ----------------------------------------------------------
-        # Step 2: Normalization
-        # ----------------------------------------------------------
-
-        if self.apply_normalization:
-            scene = self._normalizer.normalize_scene(scene)
-            steps_applied.append("normalization")
-
-        # ----------------------------------------------------------
-        # Step 3: Spatial Alignment (if reference provided)
+        # Step 3: Spatial Alignment (T2 → T1 co-registration)
         # ----------------------------------------------------------
 
         if reference_scene is not None:
-            scene = self._align_to_reference(scene, reference_scene)
-            steps_applied.append("spatial_alignment")
+            try:
+                scene = self._align_to_reference(scene, reference_scene)
+                steps_applied.append("spatial_alignment")
+            except Exception as exc:
+                logger.warning(
+                    f"Spatial alignment failed: {exc}. "
+                    f"Continuing without alignment."
+                )
+
+        # ----------------------------------------------------------
+        # Step 4: Normalization (DN → reflectance)
+        # ----------------------------------------------------------
+
+        if self.apply_normalization:
+            try:
+                scene = self._normalizer.normalize_scene(scene)
+                steps_applied.append("normalization")
+            except Exception as exc:
+                logger.warning(
+                    f"Normalization failed: {exc}. Using raw DN values."
+                )
 
         logger.info(
             f"Preprocessing complete: "
@@ -176,13 +216,87 @@ class PreprocessingPipeline:
 
     # ------------------------------------------------------------------
 
+    def _resample_scene(
+        self,
+        scene: SentinelScene,
+    ) -> SentinelScene:
+        """
+        Resample every band raster in the scene to target_resolution_m.
+
+        Sentinel-2 native resolutions:
+        - 10 m: B02, B03, B04, B08   → no-op (skip)
+        - 20 m: B11, B12, SCL        → 2× bilinear upsample to 10 m
+
+        The resampled array is written directly into the cached Raster
+        object so downstream code sees consistent 10 m data.
+
+        Parameters
+        ----------
+        scene : SentinelScene
+
+        Returns
+        -------
+        SentinelScene
+        """
+
+        for band in AI_BANDS:
+            if not scene.has_band(band):
+                continue
+
+            raster = scene.raster(band)
+
+            # Check current resolution — skip if already at target
+            try:
+                current_res = abs(raster.transform.a)
+            except Exception:
+                continue
+
+            if abs(current_res - self.target_resolution_m) < 0.5:
+                continue  # Already 10 m
+
+            # Resample in-place via array resampling
+            try:
+                src_profile = raster.profile
+                # Ensure it has a valid driver for in-memory resampling
+                src_profile.setdefault("driver", "GTiff")
+
+                array_2d = raster.array  # (H, W)
+                array_3d = array_2d[np.newaxis, ...]  # (1, H, W)
+
+                resampled_array, _ = self._resampler.resample_array(
+                    array=array_3d,
+                    src_profile=src_profile,
+                )
+
+                raster._array = resampled_array[0].astype("float32")
+
+                logger.debug(
+                    f"Resampled {band.code}: "
+                    f"{current_res:.0f}m → {self.target_resolution_m:.0f}m "
+                    f"({resampled_array.shape[2]}×{resampled_array.shape[1]})"
+                )
+
+            except Exception as exc:
+                logger.warning(
+                    f"Could not resample {band.code}: {exc}. "
+                    f"Keeping native resolution."
+                )
+
+        return scene
+
+    # ------------------------------------------------------------------
+
     def _align_to_reference(
         self,
         scene: SentinelScene,
         reference: SentinelScene,
     ) -> SentinelScene:
         """
-        Align scene rasters to the reference scene's grid.
+        Align scene rasters to the reference scene's pixel grid.
+
+        Called when preprocessing T2 to co-register it to T1 so that
+        the same pixel coordinates refer to the same ground location
+        in both epochs.
 
         Parameters
         ----------
@@ -194,8 +308,6 @@ class PreprocessingPipeline:
         SentinelScene
         """
 
-        from src.eo.models.bands import AI_BANDS
-
         for band in AI_BANDS:
             if not scene.has_band(band) or not reference.has_band(band):
                 continue
@@ -203,8 +315,8 @@ class PreprocessingPipeline:
             ref_raster = reference.raster(band)
             tgt_raster = scene.raster(band)
 
-            ref_array = ref_raster.array[np.newaxis, ...]
-            tgt_array = tgt_raster.array[np.newaxis, ...]
+            ref_array = ref_raster.array[np.newaxis, ...]  # (1, H, W)
+            tgt_array = tgt_raster.array[np.newaxis, ...]  # (1, H, W)
 
             ref_profile = ref_raster.profile
             tgt_profile = tgt_raster.profile
@@ -216,7 +328,7 @@ class PreprocessingPipeline:
                 target_profile=tgt_profile,
             )
 
-            tgt_raster._array = aligned_array[0]
+            tgt_raster._array = aligned_array[0].astype("float32")
 
         logger.debug(
             f"Aligned {scene.product_name} → {reference.product_name}"

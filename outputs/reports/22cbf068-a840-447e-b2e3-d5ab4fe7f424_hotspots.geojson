@@ -1,0 +1,53 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.46949193346985,
+          17.468081157114117
+        ]
+      },
+      "properties": {
+        "id": 1,
+        "area_pixels": 7136,
+        "from_class": "Urban",
+        "to_class": "Barren"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.46560885148493,
+          17.463064171022125
+        ]
+      },
+      "properties": {
+        "id": 2,
+        "area_pixels": 209,
+        "from_class": "Urban",
+        "to_class": "Barren"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.47688210537041,
+          17.46447203318351
+        ]
+      },
+      "properties": {
+        "id": 3,
+        "area_pixels": 112,
+        "from_class": "Barren",
+        "to_class": "Urban"
+      }
+    }
+  ]
+}

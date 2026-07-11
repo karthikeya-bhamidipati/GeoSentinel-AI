@@ -352,12 +352,7 @@ class RecommendationEngine:
             )
             ctx["vegetation_loss_km2"] = abs(veg_change) if veg_change < 0 else 0.0
 
-            water_change = area_change.change_km2.get(
-                LandCoverClass.WATER, 0.0
-            )
-            ctx["water_loss_km2"] = (
-                abs(water_change) if water_change < 0 else 0.0
-            )
+            ctx["water_loss_km2"] = 0.0
 
             urban_change = area_change.change_km2.get(
                 LandCoverClass.URBAN, 0.0
@@ -369,11 +364,7 @@ class RecommendationEngine:
                 veg_change_pct_abs = (
                     abs(veg_change) / area_change.total_area_km2 * 100
                 )
-                water_change_pct = (
-                    abs(water_change) / area_change.total_area_km2 * 100
-                    if water_change < 0 else 0.0
-                )
-                ctx["water_loss_pct"] = water_change_pct
+                ctx["water_loss_pct"] = 0.0
 
                 if "vegetation_loss_pct" not in ctx:
                     ctx["vegetation_loss_pct"] = veg_change_pct_abs
@@ -453,12 +444,7 @@ class RecommendationEngine:
         to check if any Water→Urban transitions occurred.
         """
 
-        water_class = int(LandCoverClass.WATER)
-        urban_class = int(LandCoverClass.URBAN)
-
-        return int(
-            seg_change.transition_matrix[water_class, urban_class]
-        ) > 0
+        return False
 
     # ------------------------------------------------------------------
 

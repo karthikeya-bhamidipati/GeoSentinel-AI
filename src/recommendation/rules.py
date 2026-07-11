@@ -116,7 +116,7 @@ class RuleLoader:
 
         self.config_path = (
             config_path
-            or paths.CONFIGS_DIR / "recommendation_rules.yaml"
+            or paths.CONFIG_DIR / "recommendation_rules.yaml"
         )
 
     # ------------------------------------------------------------------

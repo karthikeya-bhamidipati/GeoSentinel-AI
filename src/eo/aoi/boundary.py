@@ -210,7 +210,27 @@ class BoundaryManager:
 
 
 # =============================================================================
-# Global Singleton
+# Lazy Singleton Factory
 # =============================================================================
 
-boundary = BoundaryManager()
+_boundary_instance: "BoundaryManager | None" = None
+
+
+def get_boundary() -> "BoundaryManager":
+    """
+    Return the module-level BoundaryManager singleton.
+
+    Lazy-initialised on first call so that importing this module does not
+    crash when the HMR boundary file is absent (e.g. during unit tests that
+    mock the file-system).
+
+    Returns
+    -------
+    BoundaryManager
+    """
+    global _boundary_instance
+
+    if _boundary_instance is None:
+        _boundary_instance = BoundaryManager()
+
+    return _boundary_instance

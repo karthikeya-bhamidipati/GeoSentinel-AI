@@ -166,9 +166,17 @@ class PDFReportGenerator:
             ["Field", "Value"],
             ["Date 1 (T1)", meta.get("date1", "—")],
             ["Date 2 (T2)", meta.get("date2", "—")],
-            ["Study Area", "Hyderabad Metropolitan Region (HMR)"],
+            ["T1 Scene ID", meta.get("scene_t1_id", "—")],
+            ["T2 Scene ID", meta.get("scene_t2_id", "—")],
+            ["T1 Acquisition", meta.get("acquisition_date_t1", "—")],
+            ["T2 Acquisition", meta.get("acquisition_date_t2", "—")],
+            ["T1 Cloud Cover", f"{meta.get('cloud_cover_t1', '—')}%"
+             if meta.get("cloud_cover_t1") is not None else "—"],
+            ["T2 Cloud Cover", f"{meta.get('cloud_cover_t2', '—')}%"
+             if meta.get("cloud_cover_t2") is not None else "—"],
             ["Satellite", "Sentinel-2 L2A"],
             ["Resolution", "10 metres"],
+            ["Processing Time", f"{meta.get('elapsed_seconds', '—')} s"],
         ]
 
         story.append(

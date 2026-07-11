@@ -16,6 +16,7 @@ interface AnalysisState {
   jobId: string | null;
   status: JobStatus | null;
   progressMessage: string;
+  progressSteps: string[];
   result: AnalysisResult | null;
   error: string | null;
   isLoading: boolean;
@@ -25,6 +26,7 @@ const INITIAL_STATE: AnalysisState = {
   jobId: null,
   status: null,
   progressMessage: "",
+  progressSteps: [],
   result: null,
   error: null,
   isLoading: false,
@@ -42,12 +44,12 @@ const POLL_INTERVAL_MS = 3000;
  */
 export function useAnalysis() {
   const [state, setState] = useState<AnalysisState>(INITIAL_STATE);
-  const pollRef = useRef<NodeJS.Timeout | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
 
   const stopPolling = useCallback(() => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
     }
   }, []);
 
@@ -68,22 +70,30 @@ export function useAnalysis() {
           jobId: submitted.job_id,
           status: submitted.status,
           progressMessage: "Job queued ...",
+          progressSteps: [],
         }));
 
-        // 2. Start polling
-        pollRef.current = setInterval(async () => {
+        // 2. Start WebSocket
+        const wsUrl = process.env.NEXT_PUBLIC_API_URL
+          ? `${process.env.NEXT_PUBLIC_API_URL.replace(/^http/, "ws")}/api/v1/analysis/${submitted.job_id}/ws`
+          : `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/api/v1/analysis/${submitted.job_id}/ws`;
+
+        const ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
+
+        ws.onmessage = async (event) => {
           try {
-            const statusResp = await analysisApi.getStatus(submitted.job_id);
+            const statusResp = JSON.parse(event.data);
 
             setState((prev) => ({
               ...prev,
               status: statusResp.status,
               progressMessage: statusResp.progress_message,
+              progressSteps: statusResp.progress_steps ?? [],
             }));
 
             if (statusResp.status === "completed") {
               stopPolling();
-
               // 3. Fetch result
               const result = await analysisApi.getResult(submitted.job_id);
 
@@ -92,22 +102,24 @@ export function useAnalysis() {
                 result,
                 isLoading: false,
                 progressMessage: "Analysis complete.",
+                progressSteps: statusResp.progress_steps ?? prev.progressSteps,
               }));
             } else if (statusResp.status === "failed") {
               stopPolling();
-
               setState((prev) => ({
                 ...prev,
                 isLoading: false,
                 error: statusResp.error ?? "Analysis failed.",
                 progressMessage: "Failed.",
+                progressSteps: statusResp.progress_steps ?? prev.progressSteps,
               }));
             }
-          } catch (pollError) {
-            // Network errors during polling are non-fatal
-            console.warn("Polling error:", pollError);
+          } catch (wsError) {
+            console.warn("WebSocket message error:", wsError);
           }
-        }, POLL_INTERVAL_MS);
+        };
+
+        ws.onerror = (err) => console.warn("WebSocket error:", err);
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Submission failed.";
@@ -128,9 +140,17 @@ export function useAnalysis() {
     setState(INITIAL_STATE);
   }, [stopPolling]);
 
+  const setResult = useCallback((result: AnalysisResult) => {
+    setState({
+      ...INITIAL_STATE,
+      result,
+    });
+  }, []);
+
   return {
     ...state,
     submit,
     reset,
+    setResult,
   };
 }

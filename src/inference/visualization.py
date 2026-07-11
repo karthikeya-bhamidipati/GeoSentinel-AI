@@ -91,43 +91,15 @@ class SegmentationVisualizer:
 
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-
         color_image = self.apply_colormap(mask)
-
-        fig, ax = plt.subplots(figsize=(10, 8))
-
-        ax.imshow(color_image)
-        ax.set_title(title, fontsize=14, fontweight="bold", pad=12)
-        ax.axis("off")
-
-        if show_legend:
-            from matplotlib.patches import Patch
-
-            legend_elements = [
-                Patch(
-                    facecolor=tuple(c / 255 for c in color),
-                    edgecolor="white",
-                    label=LAND_COVER_NAMES[cls],
-                )
-                for cls, color in LAND_COVER_COLORS.items()
-                if LAND_COVER_NAMES.get(cls)
-            ]
-
-            ax.legend(
-                handles=legend_elements,
-                loc="lower right",
-                framealpha=0.9,
-                fontsize=9,
-                title="Land Cover",
-                title_fontsize=10,
-            )
-
-        plt.tight_layout()
-        fig.savefig(output_path, dpi=self.dpi, bbox_inches="tight")
-        plt.close(fig)
-
+        
+        from PIL import Image
+        img = Image.fromarray(color_image, mode="RGB")
+        # Upscale 4x (nearest neighbor preserves categorical class colors)
+        img = img.resize((img.width * 4, img.height * 4), resample=Image.Resampling.NEAREST)
+        img.save(output_path)
+        
         logger.info(f"Mask visualization saved: {output_path.name}")
-
         return output_path
 
     # ------------------------------------------------------------------
@@ -140,6 +112,7 @@ class SegmentationVisualizer:
         vmin: float = -1.0,
         vmax: float = 1.0,
         cmap: str = "RdYlGn",
+        **kwargs,
     ) -> Path:
         """
         Save a continuous change raster (NDVI/NDBI delta) as a PNG.
@@ -163,23 +136,55 @@ class SegmentationVisualizer:
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        fig, ax = plt.subplots(figsize=(10, 8))
+        import matplotlib.cm as cm
+        import matplotlib.colors as mcolors
+        from PIL import Image
 
-        im = ax.imshow(
-            change_array,
-            cmap=cmap,
-            vmin=vmin,
-            vmax=vmax,
-        )
-
-        plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-        ax.set_title(title, fontsize=14, fontweight="bold", pad=12)
-        ax.axis("off")
-
-        plt.tight_layout()
-        fig.savefig(output_path, dpi=self.dpi, bbox_inches="tight")
-        plt.close(fig)
+        norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
+        mapper = cm.ScalarMappable(norm=norm, cmap=cmap)
+        
+        # Apply colormap (returns RGBA floats 0-1)
+        rgba = mapper.to_rgba(change_array)
+        rgb_uint8 = (rgba[:, :, :3] * 255).astype(np.uint8)
+        
+        img = Image.fromarray(rgb_uint8, mode="RGB")
+        # Upscale 4x (nearest neighbor preserves delta gradients precisely)
+        img = img.resize((img.width * 4, img.height * 4), resample=Image.Resampling.NEAREST)
+        img.save(output_path)
 
         logger.info(f"Change map saved: {output_path.name}")
 
+        return output_path
+
+    # ------------------------------------------------------------------
+
+    def save_rgb_png(
+        self,
+        stack,
+        output_path: Path,
+        brightness: float = 2.5,
+    ) -> Path:
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        r = stack.channel("B04")
+        g = stack.channel("B03")
+        b = stack.channel("B02")
+
+        rgb = np.dstack([r, g, b])
+        
+        # Strictly handle NaNs (no-data regions) to prevent color artifacts
+        rgb = np.nan_to_num(rgb, nan=0.0)
+        
+        # Apply brightness and strictly clip to valid [0, 1] range
+        rgb = np.clip(rgb * brightness, 0.0, 1.0)
+        rgb_uint8 = (rgb * 255).astype(np.uint8)
+
+        from PIL import Image
+        img = Image.fromarray(rgb_uint8, mode="RGB")
+        # Upscale 4x (nearest neighbor preserves raw pixel boundaries)
+        img = img.resize((img.width * 4, img.height * 4), resample=Image.Resampling.NEAREST)
+        img.save(output_path)
+
+        logger.info(f"RGB image saved: {output_path.name}")
         return output_path

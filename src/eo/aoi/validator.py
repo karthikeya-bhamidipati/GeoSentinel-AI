@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from shapely.validation import explain_validity
 
-from src.eo.aoi.boundary import boundary
+from src.eo.aoi.boundary import get_boundary
 from src.eo.aoi.geometry import AOI
 from src.eo.exceptions import (
     AOIOutsideBoundaryError,
@@ -79,7 +79,7 @@ class AOIValidator:
         Ensure AOI lies completely inside HMR.
         """
 
-        if not boundary.contains(aoi.geometry):
+        if not get_boundary().contains(aoi.geometry):
 
             raise AOIOutsideBoundaryError(
                 "AOI lies outside the supported study area."

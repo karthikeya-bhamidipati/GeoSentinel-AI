@@ -1,2 +1,0 @@
-rule_id,category,severity,title,recommendation,why,priority
-URBAN_EXP_RAPID,Urban,HIGH,Rapid Urban Expansion Detected,"Rapid urbanization is occurring in the study area. Engage HMDA (Hyderabad Metropolitan Development Authority) to review Master Plan compliance. Prioritize green buffer zones and ensure infrastructure (roads, water, drainage) is upgraded proportionally.","Urban cover increased by 11.8% (0.30 km²) between 2016-01-11 and 2026-07-11, exceeding the rapid-expansion threshold of 10%.",3

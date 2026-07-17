@@ -20,10 +20,10 @@ data:
   cache_directory: "data/raw/cache"
 
 model:
-  type: "unet"
+  type: "deeplabv3plus"
   inference:
     # Path relative to project root. Leave empty to use random weights (dev mode).
-    checkpoint_path: ""
+    checkpoint_path: "data/weights/deeplabv3plus_best.pt"
     device: "cpu"
     tile_size: 256
     overlap: 64
@@ -76,7 +76,7 @@ dataset:
   test_split: 0.15
 
 training:
-  model: "unet"
+  model: "deeplabv3plus"
   epochs: 100
   batch_size: 8
   learning_rate: 0.0001

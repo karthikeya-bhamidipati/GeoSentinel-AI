@@ -8,13 +8,10 @@ import sys
 import argparse
 from pathlib import Path
 import numpy as np
-import torch
-import json
 import rasterio
-from rasterio.windows import from_bounds
 from rasterio.warp import reproject, Resampling
 from datetime import date
-from shapely.geometry import shape, box
+from shapely.geometry import shape
 from dotenv import load_dotenv
 import pystac_client
 
@@ -25,6 +22,11 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.eo.providers.stac import CDSEProvider
 from src.feature_engineering.pipeline import FeatureEngineeringPipeline
+
+EXPECTED_CHANNELS = [
+    "B02", "B03", "B04", "B08", "B11",
+    "NDVI", "NDBI", "NDWI", "SAVI", "EVI", "MNDWI", "BSI"
+]
 
 # ESA WorldCover to GeoSentinel Class Mapping
 # GeoSentinel: 0=Background, 1=Urban, 2=Vegetation, 3=Water, 4=Barren, 5=Agriculture
@@ -78,16 +80,13 @@ def fetch_esa_worldcover(aoi_geom, target_shape, src_transform, src_crs):
     if not items:
         raise ValueError("No ESA WorldCover data found for this AOI!")
     
-    # We take the first intersecting item (usually covers the whole tile)
     item = items[0]
     map_href = item.assets["map"].href
     
-    # Create an empty array for the target
     dest_array = np.zeros(target_shape, dtype=np.uint8)
     
     print(f"    [ESA] Streaming and reprojecting ESA mask from: {map_href}")
     with rasterio.open(map_href) as src:
-        # Reproject from ESA CRS to Sentinel-2 CRS directly into the dest_array
         reproject(
             source=rasterio.band(src, 1),
             destination=dest_array,
@@ -101,6 +100,10 @@ def fetch_esa_worldcover(aoi_geom, target_shape, src_transform, src_crs):
     return dest_array
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dry-run", action="store_true", help="Print statistics without saving patches.")
+    args = parser.parse_args()
+
     print("Starting real dataset generation using ESA WorldCover for Hyderabad...")
     
     provider = CDSEProvider(max_cloud_cover=5.0)
@@ -109,69 +112,87 @@ def main():
     aoi_geojson = get_hyderabad_aoi()
     aoi_geom = shape(aoi_geojson)
     
-    print("Searching for cloud-free scene over Hyderabad...")
-    scenes = provider.search(
-        aoi=aoi_geom,
-        start_date=date(2023, 1, 1),
-        end_date=date(2023, 5, 1),
-        max_cloud_cover=5.0
-    )
+    search_windows = [
+        (date(2023, 1, 1), date(2023, 5, 1)),
+        (date(2023, 10, 1), date(2023, 12, 31)),
+        (date(2024, 1, 1), date(2024, 5, 1)),
+    ]
+
+    all_scenes = []
+    print("Searching for cloud-free scenes over Hyderabad...")
+    for start_d, end_d in search_windows:
+        scenes = provider.search(
+            aoi=aoi_geom,
+            start_date=start_d,
+            end_date=end_d,
+            max_cloud_cover=5.0
+        )
+        if scenes:
+            all_scenes.extend(scenes[:2]) # Take top 2 from each window
     
-    if not scenes:
+    if not all_scenes:
         print("No scenes found!")
         return
         
-    out_dir = Path("data/benchmark/real/train")
-    out_dir.mkdir(parents=True, exist_ok=True)
+    out_dir_train = Path("data/benchmark/real/train")
+    out_dir_val = Path("data/benchmark/real/val")
+    if not args.dry_run:
+        out_dir_train.mkdir(parents=True, exist_ok=True)
+        out_dir_val.mkdir(parents=True, exist_ok=True)
+    
+    num_scenes = len(all_scenes)
+    print(f"Found {num_scenes} scenes for ESA Land Cover dataset...")
+    
     patch_idx = 0
-    
-    num_scenes = min(2, len(scenes))
-    print(f"Found {len(scenes)} scenes. Processing the top {num_scenes} for ESA Land Cover dataset...")
-    
+    train_patches = 0
+    val_patches = 0
+
     for i in range(num_scenes):
-        scene_dict = scenes[i]
+        scene_dict = all_scenes[i]
         scene_id = scene_dict.get("id") or scene_dict.get("title", "unknown")
         print(f"\n[{i+1}/{num_scenes}] Processing Scene: {scene_id}")
         
-        # Load the Sentinel-2 scene
         print("    [S2] Downloading/loading scene bands via provider.load()...")
         scene = provider.load(scene_dict, aoi_geom)
         
-        # Preprocess the scene to mathematically mirror the live inference environment
         from src.preprocessing.pipeline import PreprocessingPipeline
         print("    [S2] Running Preprocessing Pipeline (Cloud mask, Resample, Normalize)...")
         preprocessor = PreprocessingPipeline()
         scene = preprocessor.run(scene).scene
         
-        # We need the spatial metadata to align ESA WorldCover
         from src.eo.models.bands import Band
         b04 = scene.raster(Band.RED)
         if b04 is None:
             continue
         
-        # Fetch the perfectly aligned ESA WorldCover mask
-        esa_mask_raw = fetch_esa_worldcover(
-            aoi_geom=aoi_geom,
-            target_shape=b04.array.shape,
-            src_transform=b04.transform,
-            src_crs=b04.crs
-        )
-        
-        # Map classes
+        try:
+            esa_mask_raw = fetch_esa_worldcover(
+                aoi_geom=aoi_geom,
+                target_shape=b04.array.shape,
+                src_transform=b04.transform,
+                src_crs=b04.crs
+            )
+        except Exception as e:
+            print(f"    [ESA] Failed to fetch ESA mask: {e}")
+            continue
+            
         print("    [ESA] Mapping classes to GeoSentinel standard...")
         esa_mask = map_esa_to_geosentinel(esa_mask_raw)
             
         print("    [S2] Running Feature Engineering...")
         engineer = FeatureEngineeringPipeline()
         result = engineer.run(scene)
-        stack = result.stack.array  # (12, H, W)
         
+        if result.stack.channel_names != EXPECTED_CHANNELS:
+            print(f"    [ERR] Channel order mismatch! Expected: {EXPECTED_CHANNELS}, Got: {result.stack.channel_names}")
+            continue
+
+        stack = result.stack.array  # (12, H, W)
         print(f"    Full stack shape: {stack.shape}, ESA Mask shape: {esa_mask.shape}")
         
-        # Slicing into patches
         _, H, W = stack.shape
         patch_size = 256
-        stride = 128  # 50% overlap for more data
+        stride = 128  # 50% overlap
         
         valid_patches = 0
         for y in range(0, H - patch_size + 1, stride):
@@ -179,22 +200,30 @@ def main():
                 patch = stack[:, y:y+patch_size, x:x+patch_size]
                 mask = esa_mask[y:y+patch_size, x:x+patch_size]
                 
-                # Skip patches with nan
-                if np.isnan(patch).any():
+                if np.isnan(patch).any() or (mask == 0).all():
                     continue
                     
-                # Skip completely empty background patches
-                if (mask == 0).all():
-                    continue
+                is_val = np.random.rand() < 0.2
+                out_dir = out_dir_val if is_val else out_dir_train
+                
+                if not args.dry_run:
+                    np.save(out_dir / f"image_{patch_idx:04d}.npy", patch.astype(np.float32))
+                    np.save(out_dir / f"mask_{patch_idx:04d}.npy", mask)
                     
-                np.save(out_dir / f"image_{patch_idx:04d}.npy", patch.astype(np.float32))
-                np.save(out_dir / f"mask_{patch_idx:04d}.npy", mask)
+                if is_val:
+                    val_patches += 1
+                else:
+                    train_patches += 1
+
                 patch_idx += 1
                 valid_patches += 1
                 
-        print(f"    Saved {valid_patches} patches from this scene.")
+        print(f"    Generated {valid_patches} patches from this scene.")
                 
-    print(f"\nSuccessfully generated {patch_idx} ESA WorldCover training patches at {out_dir}")
+    if args.dry_run:
+        print(f"\n[DRY RUN] Would generate {train_patches} train patches and {val_patches} val patches.")
+    else:
+        print(f"\nSuccessfully generated {train_patches} train and {val_patches} val patches at data/benchmark/real/")
 
 if __name__ == "__main__":
     main()

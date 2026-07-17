@@ -220,14 +220,19 @@ function ReportsHint({ result }: { result: any }) {
   const downloads = [
     { key: "image_t1_png", label: "T1 True-Color Image (PNG)", ext: ".png", icon: "🛰️" },
     { key: "image_t2_png", label: "T2 True-Color Image (PNG)", ext: ".png", icon: "🛰️" },
-    { key: "mask_t1", label: "T1 Land Cover Mask (PNG)", ext: ".png", icon: "🗺️" },
-    { key: "mask_t2", label: "T2 Land Cover Mask (PNG)", ext: ".png", icon: "🗺️" },
-    { key: "change_map_png", label: "Change Map (PNG)", ext: ".png", icon: "📍" },
+    { key: "mask_t1_png", label: "T1 Land Cover Mask (PNG)", ext: ".png", icon: "🗺️" },
+    { key: "mask_t2_png", label: "T2 Land Cover Mask (PNG)", ext: ".png", icon: "🗺️" },
+    { key: "mask_t1", label: "T1 Land Cover Mask (TIFF)", ext: ".tif", icon: "🗺️" },
+    { key: "mask_t2", label: "T2 Land Cover Mask (TIFF)", ext: ".tif", icon: "🗺️" },
+    { key: "ndvi_delta_png", label: "NDVI Change Map (PNG)", ext: ".png", icon: "🌿" },
+    { key: "ndbi_delta_png", label: "NDBI Change Map (PNG)", ext: ".png", icon: "🏙️" },
+    { key: "ndvi_delta_tif", label: "NDVI Change Map (TIFF)", ext: ".tif", icon: "🌿" },
+    { key: "ndbi_delta_tif", label: "NDBI Change Map (TIFF)", ext: ".tif", icon: "🏙️" },
     { key: "pdf", label: "PDF Report", ext: ".pdf", icon: "📄" },
     { key: "csv", label: "Area Statistics CSV", ext: ".csv", icon: "📊" },
     { key: "recommendations_csv", label: "Recommendations CSV", ext: ".csv", icon: "📋" },
-    { key: "mask_png", label: "Land Cover Map (PNG)", ext: ".png", icon: "🗺️" },
-    { key: "ndvi_delta_png", label: "NDVI Change Map (PNG)", ext: ".png", icon: "🌿" },
+    { key: "hotspots_geojson", label: "Hotspots GeoJSON", ext: ".geojson", icon: "📍" },
+    { key: "aoi_geojson", label: "AOI GeoJSON", ext: ".geojson", icon: "🔲" },
   ];
 
   return (

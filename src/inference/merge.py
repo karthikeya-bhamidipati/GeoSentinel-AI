@@ -84,19 +84,28 @@ class TileMerger:
         r, c = tile.row, tile.col
         h, w = tile.height, tile.width
 
+        # Cache the Hamming window for the tile size (lazily)
+        tile_h, tile_w = probabilities.shape[1], probabilities.shape[2]
+        if not hasattr(self, "_window") or self._window.shape != (tile_h, tile_w):
+            win_y = np.hamming(tile_h)
+            win_x = np.hamming(tile_w)
+            self._window = np.outer(win_y, win_x).astype(np.float32)
+
         # Clip to canvas bounds (handles edge tiles)
         r_end = min(r + h, self.output_height)
         c_end = min(c + w, self.output_width)
         h_crop = r_end - r
         w_crop = c_end - c
 
+        window_crop = self._window[:h_crop, :w_crop]
+
         self._score_canvas[
             :,
             r:r_end,
             c:c_end,
-        ] += probabilities[:, :h_crop, :w_crop]
+        ] += probabilities[:, :h_crop, :w_crop] * window_crop
 
-        self._weight_canvas[r:r_end, c:c_end] += 1.0
+        self._weight_canvas[r:r_end, c:c_end] += window_crop
 
     # ------------------------------------------------------------------
 
@@ -111,7 +120,7 @@ class TileMerger:
         """
 
         # Avoid division by zero in uncovered areas
-        weight = np.maximum(self._weight_canvas, 1.0)
+        weight = np.maximum(self._weight_canvas, 1e-7)
 
         averaged = self._score_canvas / weight[np.newaxis, ...]
 
@@ -129,7 +138,7 @@ class TileMerger:
             Shape (num_classes, height, width), float32.
         """
 
-        weight = np.maximum(self._weight_canvas, 1.0)
+        weight = np.maximum(self._weight_canvas, 1e-7)
 
         return (
             self._score_canvas / weight[np.newaxis, ...]

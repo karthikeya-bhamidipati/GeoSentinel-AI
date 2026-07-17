@@ -182,6 +182,9 @@ class RasterAligner:
             return target_array, target_profile
 
         try:
+            from skimage.registration import phase_cross_correlation
+            import scipy.ndimage as ndimage
+
             aligned = np.zeros(
                 (target_array.shape[0], ref_h, ref_w),
                 dtype=target_array.dtype,
@@ -197,6 +200,25 @@ class RasterAligner:
                     dst_crs=ref_crs,
                     resampling=self.resampling,
                 )
+
+            # Sub-pixel co-registration
+            # Use NIR band (index 3) if available, else last available band
+            band_idx = min(3, reference_array.shape[0] - 1)
+            ref_band = reference_array[band_idx]
+            tgt_band = aligned[band_idx]
+
+            # Calculate shift
+            shift, error, diffphase = phase_cross_correlation(
+                ref_band, tgt_band, upsample_factor=10
+            )
+
+            # Apply shift if significant
+            if np.any(np.abs(shift) > 0.05):
+                logger.debug(f"Applying sub-pixel shift: {shift}")
+                for i in range(aligned.shape[0]):
+                    aligned[i] = ndimage.shift(
+                        aligned[i], shift, order=3, mode='reflect'
+                    )
 
         except Exception as exc:
             raise PreprocessingError(

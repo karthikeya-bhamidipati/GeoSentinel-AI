@@ -248,6 +248,31 @@ class RecommendationEngine:
                 )
 
         # ----------------------------------------------------------
+        # Seasonal Phenology Check
+        # ----------------------------------------------------------
+
+        if context.get("seasonal_shift") and any("Loss" in r.title or "Decline" in r.title for r in recommendations):
+            recommendations.append(
+                Recommendation(
+                    rule_id="SEASONAL_PHENOLOGY",
+                    category="Context",
+                    severity=Severity.LOW,
+                    title="Potential Seasonal Phenology Detected",
+                    recommendation=(
+                        "Verify if the detected vegetation/water losses are due to "
+                        "natural seasonal changes (e.g. winter leaf fall, dry season) "
+                        "rather than physical deforestation or permanent change."
+                    ),
+                    why=(
+                        f"The analysis spans from {date1_str} to {date2_str}, which "
+                        f"crosses major seasonal boundaries. Some detected declines "
+                        f"may be natural phenological cycles."
+                    ),
+                    priority=50,  # Ensure it shows up high
+                )
+            )
+
+        # ----------------------------------------------------------
         # Stable fallback: if no significant changes
         # ----------------------------------------------------------
 
@@ -306,7 +331,17 @@ class RecommendationEngine:
         ctx: dict[str, Any] = {
             "date1": date1,
             "date2": date2,
+            "seasonal_shift": False,
         }
+
+        try:
+            from dateutil import parser
+            d1 = parser.parse(date1)
+            d2 = parser.parse(date2)
+            month_diff = abs(d1.month - d2.month)
+            ctx["seasonal_shift"] = (month_diff > 2 and month_diff < 10)
+        except Exception:
+            pass
 
         # NDVI context
         if ndvi_change:

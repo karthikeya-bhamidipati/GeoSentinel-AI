@@ -160,10 +160,12 @@ class Orchestrator:
     def __init__(
         self,
         model_checkpoint: Optional[Path] = None,
+        change_model_checkpoint: Optional[Path] = None,
         device: str = "cpu",
         max_cloud_cover: float = 10.0,
     ) -> None:
         self._model_checkpoint = model_checkpoint
+        self._change_model_checkpoint = change_model_checkpoint
         self._device = device
         self._max_cloud_cover = max_cloud_cover
         self._config = ProjectConfig()
@@ -260,12 +262,11 @@ class Orchestrator:
             self._validator.validate(aoi)
 
             # ----------------------------------------------------------
-            # Step 2: Search CDSE for best scenes
+            # Step 2: Search and pick best T1 scene (local cloud check)
             # ----------------------------------------------------------
 
             provider = self._create_provider(max_cloud_cover)
             provider.connect()
-
             search_window = timedelta(days=30)
 
             mark(
@@ -277,8 +278,18 @@ class Orchestrator:
                 start_date=parsed_date1 - search_window,
                 end_date=parsed_date1 + search_window,
                 max_cloud_cover=max_cloud_cover,
-                max_results=10,
+                max_results=5,
             )
+            
+            # Pick best local cloud cover for T1
+            best_t1_feature = t1_features[0]
+            best_t1_cloud = 100.0
+            for f in t1_features:
+                local_cloud = provider.get_local_cloud_cover(f, aoi.geometry)
+                if local_cloud < best_t1_cloud:
+                    best_t1_cloud = local_cloud
+                    best_t1_feature = f
+            t1_features = [best_t1_feature]
 
             mark(
                 "search",
@@ -289,8 +300,18 @@ class Orchestrator:
                 start_date=parsed_date2 - search_window,
                 end_date=parsed_date2 + search_window,
                 max_cloud_cover=max_cloud_cover,
-                max_results=10,
+                max_results=5,
             )
+            
+            # Pick best local cloud cover for T2
+            best_t2_feature = t2_features[0]
+            best_t2_cloud = 100.0
+            for f in t2_features:
+                local_cloud = provider.get_local_cloud_cover(f, aoi.geometry)
+                if local_cloud < best_t2_cloud:
+                    best_t2_cloud = local_cloud
+                    best_t2_feature = f
+            t2_features = [best_t2_feature]
 
             # ----------------------------------------------------------
             # Step 3: Stream and cache AOI-clipped bands
@@ -385,23 +406,9 @@ class Orchestrator:
             mask_t1[nodata_t1] = 0
             mask_t2[nodata_t2] = 0
 
-            # Prepare 6-channel stacked tensor for Siamese U-Net (T1 RGB + T2 RGB)
-            b4_idx = fe_t1.stack.channel_names.index("B04")
-            b3_idx = fe_t1.stack.channel_names.index("B03")
-            b2_idx = fe_t1.stack.channel_names.index("B02")
-            
-            rgb_t1 = t1_arr[[b4_idx, b3_idx, b2_idx], :, :]
-            rgb_t2 = t2_arr[[b4_idx, b3_idx, b2_idx], :, :]
-            
-            siamese_arr = np.concatenate([rgb_t1, rgb_t2], axis=0)
-            siamese_stack = FeatureStack(
-                array=siamese_arr,
-                channel_names=["T1_B04", "T1_B03", "T1_B02", "T2_B04", "T2_B03", "T2_B02"]
-            )
-            
             mark("ai", "Running Siamese U-Net Change Detection …")
             change_predictor = self._get_change_predictor()
-            pred_change = change_predictor.predict(siamese_stack)
+            pred_change = change_predictor.predict(stack_t1, stack_t2)
             ml_change_mask = pred_change.mask  # (H, W) int (0 or 1)
 
             # Resolve CRS and Affine transform from the T1 reference raster
@@ -418,16 +425,30 @@ class Orchestrator:
             ndbi_t1 = fe_t1.indices.get("NDBI")
             ndbi_t2 = fe_t2.indices.get("NDBI")
 
-            # Force exact shape alignment (crop to min bounding box)
-            min_h = min(mask_t1.shape[0], mask_t2.shape[0])
-            min_w = min(mask_t1.shape[1], mask_t2.shape[1])
+            # Force exact shape alignment (crop to absolute min bounding box)
+            shapes = [mask_t1.shape, mask_t2.shape]
+            if ndvi_t1 is not None: shapes.append(ndvi_t1.shape)
+            if ndvi_t2 is not None: shapes.append(ndvi_t2.shape)
+            if ndbi_t1 is not None: shapes.append(ndbi_t1.shape)
+            if ndbi_t2 is not None: shapes.append(ndbi_t2.shape)
+            
+            min_h = min(s[0] for s in shapes)
+            min_w = min(s[1] for s in shapes)
 
             mask_t1 = mask_t1[:min_h, :min_w]
             mask_t2 = mask_t2[:min_h, :min_w]
+            ml_change_mask = ml_change_mask[:min_h, :min_w]
+            
             if ndvi_t1 is not None: ndvi_t1 = ndvi_t1[:min_h, :min_w]
             if ndvi_t2 is not None: ndvi_t2 = ndvi_t2[:min_h, :min_w]
             if ndbi_t1 is not None: ndbi_t1 = ndbi_t1[:min_h, :min_w]
             if ndbi_t2 is not None: ndbi_t2 = ndbi_t2[:min_h, :min_w]
+
+            # Also crop the full indices dictionaries so spatial statistics don't crash
+            for k in fe_t1.indices.keys():
+                fe_t1.indices[k] = fe_t1.indices[k][:min_h, :min_w]
+            for k in fe_t2.indices.keys():
+                fe_t2.indices[k] = fe_t2.indices[k][:min_h, :min_w]
 
             ndvi_result = (
                 self._ndvi_change.analyze(ndvi_t1, ndvi_t2)
@@ -521,6 +542,10 @@ class Orchestrator:
                 "elapsed_seconds": round(elapsed, 1),
                 "date1": str(parsed_date1),
                 "date2": str(parsed_date2),
+                "seasonal_shift": (
+                    abs(parsed_date1.month - parsed_date2.month) > 2
+                    and abs(parsed_date1.month - parsed_date2.month) < 10
+                ),
                 "scene_t1_id": result.scene_t1_id,
                 "scene_t2_id": result.scene_t2_id,
                 "cloud_cover_t1": (
@@ -872,16 +897,34 @@ class Orchestrator:
 
         factory = ModelFactory()
         
+        encoder_name = self._config.get("model", "encoder", "backbone", default="resnet50")
+
         deeplab_model = factory.create_model(
             model_type="deeplabv3plus",
             in_channels=12,
             num_classes=NUM_CLASSES,
+            encoder_name=encoder_name,
             encoder_weights=None,
         )
         deeplab_ckpt = paths.DATA_DIR / "weights" / "deeplabv3plus_best.pt"
         if deeplab_ckpt.exists():
             checkpoint = torch.load(deeplab_ckpt, map_location=self._device, weights_only=True)
-            deeplab_model.load_state_dict(checkpoint["model_state_dict"])
+            state_dict = checkpoint.get("model_state_dict", checkpoint)
+            
+            model_keys = list(deeplab_model.state_dict().keys())
+            needs_model_prefix = any(k.startswith("model.") for k in model_keys)
+            has_model_prefix = any(k.startswith("model.") for k in state_dict.keys())
+            
+            new_sd = {}
+            for k, v in state_dict.items():
+                if needs_model_prefix and not has_model_prefix:
+                    new_sd[f"model.{k}"] = v
+                elif not needs_model_prefix and has_model_prefix:
+                    new_sd[k.replace("model.", "", 1)] = v
+                else:
+                    new_sd[k] = v
+                    
+            deeplab_model.load_state_dict(new_sd, strict=True)
 
         deeplab_model = deeplab_model.to(self._device)
 
@@ -893,31 +936,34 @@ class Orchestrator:
 
         return self._lc_predictor
 
-    def _get_change_predictor(self) -> ScenePredictor:
-        """Lazy-load the Siamese U-Net Change Detection Predictor (6 channels)."""
+    def _get_change_predictor(self) -> SiameseScenePredictor:
+        """Lazy-load the Siamese U-Net Change Detection Predictor (12 channels)."""
 
         if self._change_predictor is not None:
             return self._change_predictor
 
-        from src.models.model_factory import ModelFactory
         import torch
+        from src.models.siamese import GeoSentinelSiameseUNet
+        from src.inference.predictor import SiameseScenePredictor
 
-        factory = ModelFactory()
+        deeplab_ckpt = paths.DATA_DIR / "weights" / "deeplabv3plus_best.pt"
+        unet_model = GeoSentinelSiameseUNet(deeplab_ckpt_path=str(deeplab_ckpt), num_classes=2)
         
-        unet_model = factory.create_model(
-            model_type="unet",
-            in_channels=6,
-            num_classes=2,
-            encoder_weights=None,
-        )
-        unet_ckpt = paths.DATA_DIR / "weights" / "change_unet_best.pt"
+        unet_ckpt = self._change_model_checkpoint or (paths.DATA_DIR / "weights" / "change_unet_best.pt")
         if unet_ckpt.exists():
             checkpoint = torch.load(unet_ckpt, map_location=self._device, weights_only=True)
-            unet_model.load_state_dict(checkpoint["model_state_dict"])
+            state_dict = checkpoint.get("model_state_dict", checkpoint)
+            new_sd = {}
+            for k, v in state_dict.items():
+                if k.startswith("model."):
+                    new_sd[k[6:]] = v
+                else:
+                    new_sd[k] = v
+            unet_model.load_state_dict(new_sd, strict=False)
 
         unet_model = unet_model.to(self._device)
 
-        self._change_predictor = ScenePredictor(
+        self._change_predictor = SiameseScenePredictor(
             model=unet_model,
             device=self._device,
             num_classes=2,

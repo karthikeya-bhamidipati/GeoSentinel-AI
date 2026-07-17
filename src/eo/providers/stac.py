@@ -438,11 +438,73 @@ class CDSEProvider(BaseProvider):
 
         logger.info(
             f"Found {len(features)} scene(s). "
-            f"Best: {features[0].get('id', '?')} "
+            f"Best (global): {features[0].get('id', '?')} "
             f"(cloud={features[0].get('properties', {}).get('eo:cloud_cover', '?')}%)"
         )
 
         return features
+
+    # ------------------------------------------------------------------
+
+    def get_local_cloud_cover(self, feature: dict, aoi: Polygon) -> float:
+        """
+        Calculates exact cloud cover percentage inside the AOI by downloading
+        the SCL (Scene Classification) band using /vsicurl/.
+        """
+        scene_id = feature.get("id")
+        if not scene_id:
+            return 100.0
+            
+        assets = feature.get("assets", {})
+        scl_asset = assets.get("scl", assets.get("SCL"))
+        if not scl_asset:
+            return float(feature.get("properties", {}).get("eo:cloud_cover", 100.0))
+            
+        url = scl_asset.get("href")
+        if not url:
+            return 100.0
+
+        if url.startswith("s3://"):
+            url = url.replace("s3://eodata/", "https://zipper.dataspace.copernicus.eu/odata/v1/Products(")
+            # Extract UUID and build stream URL
+            # Just fallback to global if S3
+            return float(feature.get("properties", {}).get("eo:cloud_cover", 100.0))
+
+        # We must use proper VSI URL if it's HTTPS
+        if url.startswith("http"):
+            # Try to fetch SCL array directly using GDAL via vsicurl
+            try:
+                import rasterio
+                from rasterio.mask import mask
+                from src.utils.logger import logger
+                
+                vsi_url = f"/vsicurl/{url}"
+                
+                # We must use token authentication if needed
+                env = self._get_vsi_env()
+                with rasterio.Env(**env):
+                    with rasterio.open(vsi_url) as src:
+                        out_image, _ = mask(src, [aoi], crop=True)
+                        scl_array = out_image[0]
+                        
+                        # Sentinel-2 SCL Cloud Classes:
+                        # 3: Cloud Shadows
+                        # 8: Cloud Medium Probability
+                        # 9: Cloud High Probability
+                        # 10: Thin Cirrus
+                        # 0: No Data
+                        
+                        valid_pixels = np.sum(scl_array > 0)
+                        if valid_pixels == 0:
+                            return 100.0
+                            
+                        cloud_pixels = np.sum(np.isin(scl_array, [3, 8, 9, 10]))
+                        return float(cloud_pixels / valid_pixels * 100.0)
+                        
+            except Exception as exc:
+                logger.debug(f"Failed to fetch local SCL for {scene_id}: {exc}")
+                
+        return float(feature.get("properties", {}).get("eo:cloud_cover", 100.0))
 
     # ------------------------------------------------------------------
     # Metadata Extraction

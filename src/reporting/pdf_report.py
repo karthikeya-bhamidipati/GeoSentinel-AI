@@ -254,6 +254,50 @@ class PDFReportGenerator:
 
                 story.append(Spacer(1, 0.3 * cm))
 
+                story.append(Spacer(1, 0.3 * cm))
+
+        # ----------------------------------------------------------
+        # Visualisations
+        # ----------------------------------------------------------
+        outputs = analysis_data.get("outputs", {})
+        
+        image_keys = [
+            ("image_t1_png", "Time 1 (T1) True Colour Composite"),
+            ("image_t2_png", "Time 2 (T2) True Colour Composite"),
+            ("mask_t1_png", "Time 1 (T1) AI Land Cover Classification"),
+            ("mask_t2_png", "Time 2 (T2) AI Land Cover Classification"),
+            ("ndvi_delta_png", "NDVI Vegetation Change Map"),
+        ]
+        
+        has_images = any(k in outputs for k, _ in image_keys)
+        
+        if has_images:
+            from reportlab.platypus import Image, PageBreak
+            
+            story.append(PageBreak())
+            story.append(Paragraph("Analysis Visualisations", styles["Heading2"]))
+            story.append(Spacer(1, 0.4 * cm))
+            
+            for key, caption in image_keys:
+                img_path = outputs.get(key)
+                if img_path and Path(img_path).exists():
+                    story.append(Paragraph(caption, styles["Heading3"]))
+                    story.append(Spacer(1, 0.2 * cm))
+                    
+                    try:
+                        img = Image(img_path)
+                        # Scale image to fit A4 width nicely (approx 16cm width max)
+                        max_width = 15.0 * cm
+                        if img.drawWidth > max_width:
+                            ratio = max_width / img.drawWidth
+                            img.drawWidth = max_width
+                            img.drawHeight = img.drawHeight * ratio
+                            
+                        story.append(img)
+                        story.append(Spacer(1, 0.8 * cm))
+                    except Exception as e:
+                        logger.warning(f"Failed to embed image {img_path} in PDF: {e}")
+
         # ----------------------------------------------------------
         # Build
         # ----------------------------------------------------------

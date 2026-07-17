@@ -46,11 +46,27 @@ frontend/.eslintcache
 # GeoSentinel AI Data & Cache
 # =============================================================================
 # Ignore heavy satellite imagery, outputs, and cache, but KEEP reference data
-data/scenes/
-data/cache/
-data/outputs/
-data/reports/
+data/scenes/*
+!data/scenes/.gitkeep
+data/cache/*
+!data/cache/.gitkeep
+data/outputs/*
+!data/outputs/.gitkeep
+data/reports/*
+!data/reports/.gitkeep
+data/jobs/*
+!data/jobs/.gitkeep
+data/figures/*
+!data/figures/.gitkeep
+data/patches/*
+!data/patches/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+outputs/*
+!outputs/.gitkeep
+
 !data/reference/
+data/weights/*.ckpt
 
 # Logs
 logs/

@@ -1,21 +1,21 @@
 model:
-  name: unet
+  name: deeplabv3plus
 
 encoder:
-  backbone: resnet34
+  backbone: resnet50
   pretrained: true
 
 input:
-  channels: 4
+  channels: 12
 
 output:
-  classes: 2
+  classes: 6
 
 training:
-  loss: dice_bce
-  optimizer: adam
+  loss: dice_focal
+  optimizer: adamw
   scheduler: cosine
 
 checkpoint:
   save_best_only: true
-  monitor: dice
+  monitor: val_miou

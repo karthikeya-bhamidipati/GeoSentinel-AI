@@ -263,12 +263,15 @@ class PreprocessingPipeline:
                 array_2d = raster.array  # (H, W)
                 array_3d = array_2d[np.newaxis, ...]  # (1, H, W)
 
-                resampled_array, _ = self._resampler.resample_array(
+                resampled_array, updated_profile = self._resampler.resample_array(
                     array=array_3d,
                     src_profile=src_profile,
                 )
-
                 raster._array = resampled_array[0].astype("float32")
+                
+                # Update raster profile and transform in memory
+                raster.profile = updated_profile
+                raster.transform = updated_profile["transform"]
 
                 logger.debug(
                     f"Resampled {band.code}: "
@@ -321,7 +324,7 @@ class PreprocessingPipeline:
             ref_profile = ref_raster.profile
             tgt_profile = tgt_raster.profile
 
-            aligned_array, _ = self._aligner.align_arrays(
+            aligned_array, aligned_profile = self._aligner.align_arrays(
                 reference_array=ref_array,
                 reference_profile=ref_profile,
                 target_array=tgt_array,
@@ -329,6 +332,9 @@ class PreprocessingPipeline:
             )
 
             tgt_raster._array = aligned_array[0].astype("float32")
+            tgt_raster.profile = aligned_profile
+            tgt_raster.transform = aligned_profile["transform"]
+            tgt_raster.crs = aligned_profile["crs"]
 
         logger.debug(
             f"Aligned {scene.product_name} → {reference.product_name}"

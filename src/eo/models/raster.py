@@ -54,6 +54,10 @@ class Raster:
         repr=False,
     )
 
+    _profile_override: dict | None = field(default=None, init=False, repr=False)
+    _transform_override: Affine | None = field(default=None, init=False, repr=False)
+    _crs_override: CRS | None = field(default=None, init=False, repr=False)
+
     # ------------------------------------------------------------------
 
     @property
@@ -71,28 +75,46 @@ class Raster:
 
     @property
     def profile(self):
+        if self._profile_override is not None:
+            return self._profile_override
 
         with rasterio.open(self.path) as src:
 
             return src.profile
 
+    @profile.setter
+    def profile(self, value: dict):
+        self._profile_override = value
+
     # ------------------------------------------------------------------
 
     @property
     def transform(self) -> Affine:
+        if self._transform_override is not None:
+            return self._transform_override
 
         with rasterio.open(self.path) as src:
 
             return src.transform
+            
+    @transform.setter
+    def transform(self, value: Affine):
+        self._transform_override = value
 
     # ------------------------------------------------------------------
 
     @property
     def crs(self) -> CRS:
+        if self._crs_override is not None:
+            return self._crs_override
 
         with rasterio.open(self.path) as src:
 
             return src.crs
+            
+    @crs.setter
+    def crs(self, value: CRS):
+        self._crs_override = value
 
     # ------------------------------------------------------------------
 

@@ -573,6 +573,7 @@ class Orchestrator:
                 "preprocessing_steps": t1_prep.steps_applied,
                 "crs": str(scene_crs) if scene_crs else None,
                 "pixel_resolution_m": 10.0,
+                "bbox": bbox,
             }
 
             logger.info(

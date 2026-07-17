@@ -179,6 +179,15 @@ class PDFReportGenerator:
             ["Processing Time", f"{meta.get('elapsed_seconds', '—')} s"],
         ]
 
+        bbox = meta.get("bbox")
+        if bbox and len(bbox) == 4:
+            period_data.append(["AOI Bounding Box", f"[{bbox[0]:.4f}, {bbox[1]:.4f}, {bbox[2]:.4f}, {bbox[3]:.4f}]"])
+
+        area_rows = analysis_data.get("area_change", {}).get("rows", [])
+        if area_rows:
+            total_area = sum(row.get("t1_area_km2", 0) for row in area_rows)
+            period_data.append(["Total AOI Area", f"{total_area:.3f} km²"])
+
         story.append(
             self._build_table(period_data)
         )

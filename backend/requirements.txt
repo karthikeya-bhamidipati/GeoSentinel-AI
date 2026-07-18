@@ -23,3 +23,4 @@ segmentation-models-pytorch==0.3.4
 # Reporting
 reportlab==4.2.4
 matplotlib
+playwright

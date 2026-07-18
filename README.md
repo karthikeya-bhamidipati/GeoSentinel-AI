@@ -80,20 +80,36 @@ This architecture was heavily inspired by leading research in Earth Observation 
 
 ---
 
-## 🚀 Deployment (Docker)
+## 🚀 Deployment (Docker Hub)
 
-The fastest and most reliable way to run GeoSentinel AI on any machine is using Docker. Containerization ensures that you don't need to manually install PyTorch, geospatial binaries, or Node.js.
+The fastest and most reliable way to run GeoSentinel AI on any machine is using our prebuilt Docker images. This ensures you do not need to install PyTorch, geospatial packages, or Node.js locally.
 
 ### Prerequisites
 - [Docker](https://docs.docker.com/get-docker/) & Docker Compose installed.
 
-### Run with Docker Compose
-To launch both the FastAPI backend and Next.js frontend simultaneously, run:
+### Start the Services
+Simply run the following command in the project root directory (where `docker-compose.yml` is located):
 ```bash
-docker compose up --build -d
+# Pull the prebuilt images from Docker Hub
+docker compose pull
+
+# Start the services in detached mode
+docker compose up -d
 ```
-- Frontend will be available at `http://localhost:3000`
-- Backend API will be available at `http://localhost:8000`
+
+This will pull the compiled production images:
+* **Frontend:** `karthikeyabh/geosentinel-frontend:latest`
+* **Backend:** `karthikeyabh/geosentinel-backend:latest`
+
+Once started:
+- **Frontend Dashboard:** `http://localhost:3000`
+- **FastAPI Backend API:** `http://localhost:8000`
+
+> [!TIP]
+> If you wish to build the images locally from the source files instead of pulling from Docker Hub, you can run:
+> ```bash
+> docker compose up --build -d
+> ```
 
 ---
 

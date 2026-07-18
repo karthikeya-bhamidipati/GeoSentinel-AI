@@ -1,12 +1,33 @@
-# =============================================================================
-# GeoSentinel AI — Root Docker Compose Entry Point
-#
-# Usage:
-#   docker compose up --build
-#
-# This file delegates to docker/docker-compose.yml.
-# It exists so `docker compose up --build` works from the project root.
-# =============================================================================
+version: '3.8'
 
-include:
-  - docker/docker-compose.yml
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: karthikeyabh/geosentinel-backend:latest
+    container_name: geosentinel-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data/scenes:/app/data/scenes
+      - ./outputs:/app/outputs
+    environment:
+      - LOG_LEVEL=INFO
+      # - SENTINEL_HUB_CLIENT_ID=your_client_id_here
+      # - SENTINEL_HUB_CLIENT_SECRET=your_client_secret_here
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: karthikeyabh/geosentinel-frontend:latest
+    container_name: geosentinel-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    restart: unless-stopped

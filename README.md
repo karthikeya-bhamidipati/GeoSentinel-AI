@@ -80,9 +80,24 @@ This architecture was heavily inspired by leading research in Earth Observation 
 
 ---
 
-## 🚀 How to Run Locally
+## 🚀 Deployment (Docker)
 
-We have created an automated startup script to make local deployment as simple as possible.
+The fastest and most reliable way to run GeoSentinel AI on any machine is using Docker. Containerization ensures that you don't need to manually install PyTorch, geospatial binaries, or Node.js.
+
+### Prerequisites
+- [Docker](https://docs.docker.com/get-docker/) & Docker Compose installed.
+
+### Run with Docker Compose
+To launch both the FastAPI backend and Next.js frontend simultaneously, run:
+```bash
+docker compose up --build -d
+```
+- Frontend will be available at `http://localhost:3000`
+- Backend API will be available at `http://localhost:8000`
+
+---
+
+## 🚀 How to Run Locally (Without Docker)
 
 ### Prerequisites
 - Python 3.12+ installed and added to PATH

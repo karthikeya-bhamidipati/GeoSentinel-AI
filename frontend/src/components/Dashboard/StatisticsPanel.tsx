@@ -71,8 +71,8 @@ export function StatisticsPanel({ temporalStats }: StatisticsPanelProps) {
             </div>
             <div className="stat-item">
               <div className="stat-label">Urban Growth</div>
-              <div className="stat-value negative">
-                {ndbi.urban_increase_pct.toFixed(1)}%
+              <div className={`stat-value ${ndbi.urban_increase_pct > 5 ? "negative" : "positive"}`}>
+                {ndbi.urban_increase_pct > 0 ? '+' : ''}{ndbi.urban_increase_pct.toFixed(1)}%
               </div>
             </div>
           </>

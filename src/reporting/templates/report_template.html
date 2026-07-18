@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>GeoSentinel AI Report</title>
+    <style>
+        /* Professional CSS Reset & Fonts */
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            background-color: #ffffff;
+            color: #333333;
+            font-size: 10pt;
+            line-height: 1.4;
+            padding: 30px 40px;
+        }
+
+        /* Typography */
+        h1 {
+            color: #0d47a1;
+            font-size: 22pt;
+            font-weight: 700;
+            margin-bottom: 5px;
+            letter-spacing: -0.01em;
+        }
+        h2 {
+            color: #1565c0;
+            font-size: 14pt;
+            font-weight: 500;
+            margin-top: 25px;
+            margin-bottom: 15px;
+            padding-bottom: 5px;
+            border-bottom: 2px solid #e3f2fd;
+        }
+
+        /* Header Area */
+        .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid #0d47a1;
+        }
+        .header-left .logo {
+            font-size: 14pt;
+            font-weight: 500;
+            color: #546e7a;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .header-right {
+            text-align: right;
+            font-size: 9pt;
+            color: #78909c;
+        }
+        .header-right strong {
+            color: #37474f;
+        }
+
+        /* Flex Grid for Metadata */
+        .meta-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        .meta-item {
+            flex: 1 1 calc(25% - 15px); /* 4 columns */
+            background-color: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 8px 12px;
+        }
+        .meta-item .label {
+            display: block;
+            font-size: 8pt;
+            color: #757575;
+            text-transform: uppercase;
+            margin-bottom: 2px;
+            font-weight: 500;
+        }
+        .meta-item .value {
+            display: block;
+            font-size: 9.5pt;
+            color: #212121;
+            font-weight: 500;
+            word-break: break-all;
+        }
+
+        /* Visualizations */
+        .viz-section {
+            margin-bottom: 25px;
+        }
+        .viz-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+        .viz-col {
+            text-align: center;
+        }
+        .viz-col img {
+            width: 100%;
+            height: auto;
+            border: 1px solid #cfd8dc;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .viz-title {
+            margin-top: 6px;
+            font-size: 8.5pt;
+            color: #455a64;
+            font-weight: 500;
+        }
+
+        /* Tables */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 25px;
+            background-color: #ffffff;
+        }
+        .data-table th {
+            background-color: #f5f5f5;
+            color: #424242;
+            font-weight: 700;
+            font-size: 9pt;
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 2px solid #bdbdbd;
+        }
+        .data-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 10pt;
+            color: #424242;
+        }
+        .data-table tr:nth-child(even) {
+            background-color: #fafafa;
+        }
+        .data-table td.class-name {
+            font-weight: 500;
+            color: #212121;
+        }
+
+        /* Utility Colors */
+        .text-positive { color: #2e7d32 !important; font-weight: 500; }
+        .text-negative { color: #c62828 !important; font-weight: 500; }
+
+        /* Recommendations */
+        .rec-card {
+            border: 1px solid #e0e0e0;
+            border-left: 4px solid #4caf50;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 15px;
+            background-color: #ffffff;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .rec-CRITICAL { border-left-color: #d32f2f; background-color: #ffebee; }
+        .rec-HIGH { border-left-color: #f57c00; background-color: #fff3e0; }
+        .rec-MEDIUM { border-left-color: #fbc02d; background-color: #fffde7; }
+        .rec-LOW { border-left-color: #388e3c; background-color: #f1f8e9; }
+        
+        .rec-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .rec-severity {
+            font-size: 8pt;
+            font-weight: 700;
+            padding: 3px 6px;
+            border-radius: 3px;
+            margin-right: 12px;
+            background-color: rgba(0,0,0,0.05);
+            text-transform: uppercase;
+        }
+        .rec-CRITICAL .rec-severity { color: #c62828; }
+        .rec-HIGH .rec-severity { color: #ef6c00; }
+        .rec-MEDIUM .rec-severity { color: #f9a825; }
+        .rec-LOW .rec-severity { color: #2e7d32; }
+        
+        .rec-title {
+            font-size: 11.5pt;
+            font-weight: 700;
+            color: #212121;
+        }
+        .rec-body {
+            color: #424242;
+            margin-bottom: 8px;
+            font-size: 10pt;
+        }
+        .rec-why {
+            font-size: 9pt;
+            color: #616161;
+            font-style: italic;
+            border-top: 1px solid rgba(0,0,0,0.05);
+            padding-top: 8px;
+        }
+
+        /* Page breaks */
+        .page-break { page-break-before: always; }
+        .avoid-break { page-break-inside: avoid; }
+    </style>
+</head>
+<body>
+
+    <div class="header-container">
+        <div class="header-left">
+            <h1>GeoSentinel AI</h1>
+            <div class="logo">Automated Analysis Report</div>
+        </div>
+        <div class="header-right">
+            Job ID: <strong>{{ job_id }}</strong><br>
+            Generated: <strong>{{ generated_time }}</strong>
+        </div>
+    </div>
+
+    <h2>1. Executive Summary & Metadata</h2>
+    <div class="meta-container">
+        <div class="meta-item">
+            <span class="label">Date 1 (T1)</span>
+            <span class="value">{{ metadata.get('date1', '—') }}</span>
+        </div>
+        <div class="meta-item">
+            <span class="label">Date 2 (T2)</span>
+            <span class="value">{{ metadata.get('date2', '—') }}</span>
+        </div>
+        <div class="meta-item">
+            <span class="label">T1 Scene ID</span>
+            <span class="value">{{ metadata.get('scene_t1_id', '—') }}</span>
+        </div>
+        <div class="meta-item">
+            <span class="label">T2 Scene ID</span>
+            <span class="value">{{ metadata.get('scene_t2_id', '—') }}</span>
+        </div>
+        <div class="meta-item">
+            <span class="label">T1 Acquisition Date</span>
+            <span class="value">{{ metadata.get('acquisition_date_t1', metadata.get('date1', '—')) }}</span>
+        </div>
+        <div class="meta-item">
+            <span class="label">T2 Acquisition Date</span>
+            <span class="value">{{ metadata.get('acquisition_date_t2', metadata.get('date2', '—')) }}</span>
+        </div>
+        <div class="meta-item">
+            <span class="label">Total AOI Area</span>
+            <span class="value">{{ "%.3f"|format(total_area) }} km²</span>
+        </div>
+        <div class="meta-item">
+            <span class="label">Spatial Resolution</span>
+            <span class="value">10m / px</span>
+        </div>
+    </div>
+
+    {% if outputs %}
+    <h2>2. Visualizations</h2>
+    <div class="viz-section avoid-break">
+        <div class="viz-grid" style="grid-template-columns: repeat(3, 1fr); gap: 20px;">
+            {% if outputs.get('image_t1_png') %}
+            <div class="viz-col">
+                <img src="{{ outputs.get('image_t1_png') }}" alt="T1 RGB">
+                <div class="viz-title">T1 RGB Composite</div>
+            </div>
+            {% endif %}
+            
+            {% if outputs.get('image_t2_png') %}
+            <div class="viz-col">
+                <img src="{{ outputs.get('image_t2_png') }}" alt="T2 RGB">
+                <div class="viz-title">T2 RGB Composite</div>
+            </div>
+            {% endif %}
+
+            {% if outputs.get('change_mask_png') %}
+            <div class="viz-col">
+                <img src="{{ outputs.get('change_mask_png') }}" alt="Change Mask">
+                <div class="viz-title">AI Change Mask</div>
+            </div>
+            {% endif %}
+
+            {% if outputs.get('mask_t1_png') %}
+            <div class="viz-col">
+                <img src="{{ outputs.get('mask_t1_png') }}" alt="T1 Mask">
+                <div class="viz-title">T1 Land Cover</div>
+            </div>
+            {% endif %}
+
+            {% if outputs.get('mask_t2_png') %}
+            <div class="viz-col">
+                <img src="{{ outputs.get('mask_t2_png') }}" alt="T2 Mask">
+                <div class="viz-title">T2 Land Cover</div>
+            </div>
+            {% endif %}
+
+            {% if outputs.get('ndvi_delta_png') %}
+            <div class="viz-col">
+                <img src="{{ outputs.get('ndvi_delta_png') }}" alt="NDVI Change">
+                <div class="viz-title">NDVI Change</div>
+            </div>
+            {% endif %}
+
+            {% if outputs.get('ndbi_delta_png') %}
+            <div class="viz-col">
+                <img src="{{ outputs.get('ndbi_delta_png') }}" alt="NDBI Change">
+                <div class="viz-title">NDBI Change</div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 4px;">
+            <h3 style="font-size: 10pt; margin-bottom: 8px; color: #1565c0;">Legends</h3>
+            <div style="display: flex; flex-wrap: wrap; gap: 20px; font-size: 9pt;">
+                <div>
+                    <strong>Land Cover:</strong><br>
+                    <span style="color:#ff0000;">■</span> Urban &nbsp;
+                    <span style="color:#00ff00;">■</span> Vegetation &nbsp;
+                    <span style="color:#0000ff;">■</span> Water &nbsp;
+                    <span style="color:#d4a574;">■</span> Barren &nbsp;
+                    <span style="color:#fbbf24;">■</span> Agriculture
+                </div>
+                <div>
+                    <strong>NDVI Change:</strong><br>
+                    <span style="color:#d7191c;">■</span> Loss &nbsp;
+                    <span style="color:#ffffbf;">■</span> Stable &nbsp;
+                    <span style="color:#1a9641;">■</span> Gain
+                </div>
+                <div>
+                    <strong>NDBI Change (Urbanization):</strong><br>
+                    <span style="color:#2c7bb6;">■</span> Decrease &nbsp;
+                    <span style="color:#ffffbf;">■</span> Stable &nbsp;
+                    <span style="color:#d7191c;">■</span> Increase
+                </div>
+                <div>
+                    <strong>AI Change Mask:</strong><br>
+                    <span style="color:#38bdf8;">■</span> Changed Area
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="page-break"></div>
+
+    {% if area_rows %}
+    <h2>3. Land Cover Change Analytics</h2>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Land Cover Class</th>
+                <th>T1 Area (km²)</th>
+                <th>T2 Area (km²)</th>
+                <th>Absolute Change (km²)</th>
+                <th>Relative Change (%)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in area_rows %}
+            <tr>
+                <td class="class-name">{{ row.class_name }}</td>
+                <td>{{ "%.3f"|format(row.t1_area_km2) }}</td>
+                <td>{{ "%.3f"|format(row.t2_area_km2) }}</td>
+                <td class="{{ 'text-negative' if (row.class_name in ['Urban', 'Barren'] and row.change_km2 > 0) or (row.class_name not in ['Urban', 'Barren'] and row.change_km2 < 0) else 'text-positive' }}">
+                    {{ "%+.3f"|format(row.change_km2) }}
+                </td>
+                <td class="{{ 'text-negative' if (row.class_name in ['Urban', 'Barren'] and row.change_pct > 0) or (row.class_name not in ['Urban', 'Barren'] and row.change_pct < 0) else 'text-positive' }}">
+                    {{ "%+.2f"|format(row.change_pct) }}%
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    {% if recommendations %}
+    <h2>4. Actionable Intelligence & Recommendations</h2>
+    {% for rec in recommendations %}
+    <div class="rec-card rec-{{ rec.severity }} avoid-break">
+        <div class="rec-header">
+            <span class="rec-severity">{{ rec.severity }}</span>
+            <span class="rec-title">{{ rec.title }}</span>
+        </div>
+        <div class="rec-body">{{ rec.recommendation }}</div>
+        <div class="rec-why"><strong>Reasoning:</strong> {{ rec.why }}</div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+</body>
+</html>

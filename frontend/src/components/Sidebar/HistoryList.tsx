@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { analysisApi } from "@/services/api";
+import { Trash2 } from "lucide-react";
 
 interface HistoryJob {
   job_id: string;
@@ -18,21 +19,34 @@ export function HistoryList({ onLoadHistory }: HistoryListProps) {
   const [history, setHistory] = useState<HistoryJob[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    async function fetchHistory() {
-      setIsLoading(true);
-      try {
-        const data = await analysisApi.getHistory();
-        setHistory(data.jobs || []);
-      } catch (err) {
-        console.error("Failed to fetch history", err);
-      } finally {
-        setIsLoading(false);
-      }
+  async function fetchHistory() {
+    setIsLoading(true);
+    try {
+      const data = await analysisApi.getHistory();
+      setHistory(data.jobs || []);
+    } catch (err) {
+      console.error("Failed to fetch history", err);
+    } finally {
+      setIsLoading(false);
     }
-    
+  }
+
+  useEffect(() => {
     fetchHistory();
   }, []);
+
+  const handleDelete = async (e: React.MouseEvent, jobId: string) => {
+    e.stopPropagation();
+    if (!confirm("Are you sure you want to permanently delete this analysis?")) return;
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/analysis/${jobId}`, {
+        method: "DELETE"
+      });
+      fetchHistory(); // Refresh the list
+    } catch (err) {
+      console.error("Failed to delete job", err);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -62,22 +76,22 @@ export function HistoryList({ onLoadHistory }: HistoryListProps) {
 
   return (
     <div>
-      <div className="form-section-title" style={{ marginBottom: "var(--space-3)" }}>Past Analyses</div>
+      <div className="form-section-title" style={{ marginBottom: "var(--space-3)", fontSize: "14px", fontWeight: 600 }}>Past Analyses</div>
       {history.map((job) => (
         <div 
           key={job.job_id} 
           className="layer-item" 
           style={{ 
             display: "flex", 
-            flexDirection: "column", 
-            alignItems: "flex-start", 
-            gap: "4px", 
-            padding: "8px", 
-            marginBottom: "8px", 
+            justifyContent: "space-between", 
+            alignItems: "center", 
+            padding: "12px", 
+            marginBottom: "12px", 
             cursor: job.status === "completed" ? "pointer" : "default",
-            background: "var(--color-surface-alt)",
+            background: "var(--color-surface-glass)",
             border: "1px solid var(--color-border)",
-            borderRadius: "4px"
+            borderRadius: "8px",
+            transition: "all 0.2s"
           }}
           onClick={() => {
             if (job.status === "completed" && job.result && onLoadHistory) {
@@ -85,23 +99,40 @@ export function HistoryList({ onLoadHistory }: HistoryListProps) {
             }
           }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between", width: "100%", fontSize: "0.8rem", fontWeight: 600 }}>
-            <span style={{ color: "var(--color-text)" }}>
-              {job.result ? `${job.result.date1} → ${job.result.date2}` : job.job_id.split("-")[0]}
-            </span>
-            <span style={{ 
-              color: job.status === "completed" ? "var(--color-green)" : job.status === "failed" ? "var(--color-danger)" : "var(--color-accent)",
-              textTransform: "capitalize",
-              fontSize: "0.7rem"
-            }}>
-              {job.status}
-            </span>
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", width: "100%", fontSize: "12px", fontWeight: 600 }}>
+              <span style={{ color: "var(--color-text)" }}>
+                {job.result ? `${job.result.date1} → ${job.result.date2}` : job.job_id.split("-")[0]}
+              </span>
+            </div>
+            <div style={{ fontSize: "11px", color: "var(--color-text-muted)" }}>
+              {new Date(job.created_at).toLocaleString()}
+              <span style={{ 
+                marginLeft: "8px",
+                color: job.status === "completed" ? "var(--color-success)" : job.status === "failed" ? "var(--color-error)" : "var(--color-warning)",
+                textTransform: "capitalize",
+                fontWeight: 600
+              }}>
+                • {job.status}
+              </span>
+            </div>
           </div>
-          <div style={{ fontSize: "0.7rem", color: "var(--color-text-muted)" }}>
-            {new Date(job.created_at).toLocaleString()}
-          </div>
+          <button 
+            onClick={(e) => handleDelete(e, job.job_id)}
+            style={{ 
+              background: "transparent", 
+              border: "none", 
+              color: "var(--color-text-muted)", 
+              cursor: "pointer",
+              padding: "4px"
+            }}
+            title="Delete analysis"
+          >
+            <Trash2 size={16} />
+          </button>
         </div>
       ))}
     </div>
   );
 }
+

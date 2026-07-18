@@ -43,7 +43,7 @@ export function AnalysisForm({
   };
 
   return (
-    <div>
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       {/* Title */}
       <div style={{ marginBottom: "1.5rem" }}>
         <h1
@@ -120,15 +120,15 @@ export function AnalysisForm({
               className={`btn btn-full ${isDrawingMode ? 'btn-secondary' : 'btn-primary'}`}
               onClick={onDrawAOI}
             >
-              {isDrawingMode ? "Cancel Drawing" : "📍 Select Area of Interest"}
+              {isDrawingMode ? "Cancel Drawing" : "✨ Select Area of Interest"}
             </button>
           </div>
         )}
       </div>
 
       {/* Analysis Parameters */}
-      <form onSubmit={handleSubmit}>
-        <div className="panel" style={{ marginBottom: "1rem" }}>
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        <div className="panel" style={{ padding: "16px", marginBottom: "1rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
             <div className="panel-title" style={{ marginBottom: 0 }}>Time Period</div>
             <div
@@ -180,8 +180,8 @@ export function AnalysisForm({
           </div>
         </div>
 
-        <div className="panel" style={{ marginBottom: "1rem" }}>
-          <div className="panel-title">Scene Selection</div>
+        <div className="panel" style={{ padding: "16px", marginBottom: "1rem" }}>
+          <div className="panel-title" style={{ marginBottom: "12px" }}>Scene Selection</div>
 
           <div className="form-group">
             <label className="form-label" htmlFor="cloud-cover">
@@ -221,39 +221,7 @@ export function AnalysisForm({
           </div>
         </div>
 
-        {/* Info */}
-        <div
-          className="panel"
-          style={{ marginBottom: "1rem", fontSize: "0.75rem" }}
-        >
-          <div className="panel-title">Analysis Pipeline</div>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "6px",
-              color: "var(--color-text-muted)",
-            }}
-          >
-            {[
-              "1. CDSE STAC search & download",
-              "2. Cloud masking + normalization",
-              "3. Feature engineering (12 channels)",
-              "4. U-Net segmentation inference",
-              "5. NDVI / NDBI temporal analysis",
-              "6. Area statistics",
-              "7. Rule-based recommendations",
-              "8. PDF + CSV + GeoTIFF export",
-            ].map((step) => (
-              <div key={step} style={{ display: "flex", gap: "8px" }}>
-                <span style={{ color: "var(--color-accent)", flexShrink: 0 }}>
-                  ›
-                </span>
-                <span>{step}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+
 
         <button
           type="submit"
@@ -267,7 +235,7 @@ export function AnalysisForm({
               Running Analysis ...
             </>
           ) : (
-            <>🛰️ Run Analysis</>
+            <>🚀 Run Analysis</>
           )}
         </button>
       </form>

@@ -51,6 +51,8 @@ from pathlib import Path
 from typing import Callable, Optional, Tuple
 import concurrent.futures
 
+import numpy as np
+
 from rasterio.crs import CRS
 from rasterio.transform import Affine
 
@@ -187,7 +189,7 @@ class Orchestrator:
 
         # --- Visualisation & export ------------------------------------
         self._visualizer = SegmentationVisualizer()
-        self._pdf_gen = PDFReportGenerator()
+        self._pdf_gen = PDFReportGenerator(output_dir=paths.REPORTS_DIR)
         self._csv_exp = CSVExporter()
         self._geojson_exp = GeoJSONExporter()
         self._geotiff_exp = GeoTIFFExporter()
@@ -450,6 +452,12 @@ class Orchestrator:
             for k in fe_t2.indices.keys():
                 fe_t2.indices[k] = fe_t2.indices[k][:min_h, :min_w]
 
+            # NOTE: Do NOT overwrite mask_t2 here. The segmentation_change.analyze()
+            # method already handles false-positive suppression internally by
+            # intersecting ml_change_mask with (mask_t1 != mask_t2).
+            # Overwriting mask_t2 here would corrupt the ORIGINAL classification
+            # results, making area statistics and change percentages inaccurate.
+
             ndvi_result = (
                 self._ndvi_change.analyze(ndvi_t1, ndvi_t2)
                 if ndvi_t1 is not None and ndvi_t2 is not None
@@ -460,12 +468,45 @@ class Orchestrator:
                 if ndbi_t1 is not None and ndbi_t2 is not None
                 else None
             )
-            seg_result = self._seg_change.analyze(mask_t1, mask_t2, ml_change_mask)
+            # Extract bbox from AOI for spatial coordinate estimation
+            try:
+                # Assuming aoi_geojson is a dict with a bbox field, or calculate it
+                coords = np.array(aoi_geojson.get("coordinates", [])[0])
+                if coords.size > 0:
+                    west, south = coords.min(axis=0)
+                    east, north = coords.max(axis=0)
+                    aoi_bbox = [float(west), float(south), float(east), float(north)]
+                else:
+                    aoi_bbox = None
+            except Exception:
+                aoi_bbox = None
 
+            seg_result = self._seg_change.analyze(mask_t1, mask_t2, ml_change_mask, bbox=aoi_bbox)
+            
+            # Use exact Affine transform to compute accurate lat/lon for hotspots
+            if seg_result.hotspots and scene_transform is not None and scene_crs is not None:
+                try:
+                    from rasterio.warp import transform as rp_transform
+                    from rasterio.crs import CRS
+                    
+                    target_crs = CRS.from_epsg(4326)
+                    for h in seg_result.hotspots:
+                        # Convert pixel to UTM (or whatever scene_crs is)
+                        x_crs, y_crs = scene_transform * (h.center_col, h.center_row)
+                        # Project to Lat/Lon
+                        lons, lats = rp_transform(scene_crs, target_crs, [x_crs], [y_crs])
+                        h.center_lon = lons[0]
+                        h.center_lat = lats[0]
+                except Exception as exc:
+                    logger.warning(f"Failed to project hotspot coordinates: {exc}")
+
+            seg_summary = seg_result.summary()
+            seg_summary["hotspots"] = [h.to_dict() for h in seg_result.hotspots]
+            seg_summary["transition_matrix"] = seg_result.transition_dict()
             result.temporal_stats = {
                 "ndvi_change": ndvi_result.summary() if ndvi_result else {},
                 "ndbi_change": ndbi_result.summary() if ndbi_result else {},
-                "segmentation_change": seg_result.summary(),
+                "segmentation_change": seg_summary,
             }
 
             # ----------------------------------------------------------
@@ -510,30 +551,7 @@ class Orchestrator:
             ]
 
             # ----------------------------------------------------------
-            # Step 11: Export all output artefacts
-            # ----------------------------------------------------------
-
-            mark("report", "Exporting reports (GeoTIFF / GeoJSON / CSV / PDF) …")
-            result.outputs = self._export_outputs(
-                job_id=job_id,
-                date1=parsed_date1,
-                date2=parsed_date2,
-                mask_t1=mask_t1,
-                mask_t2=mask_t2,
-                ndvi_result=ndvi_result,
-                ndbi_result=ndbi_result,
-                seg_result=seg_result,
-                area_change=result.area_change,
-                recommendations=result.recommendations,
-                aoi_geojson=aoi_geojson,
-                crs=scene_crs,
-                transform=scene_transform,
-                fe_t1=fe_t1,
-                fe_t2=fe_t2,
-            )
-
-            # ----------------------------------------------------------
-            # Step 12: Metadata
+            # Step 11: Metadata
             # ----------------------------------------------------------
 
             elapsed = time.time() - start_time
@@ -552,29 +570,54 @@ class Orchestrator:
                     t1_features[0]
                     .get("properties", {})
                     .get("eo:cloud_cover")
-                ),
+                ) if t1_features else None,
                 "cloud_cover_t2": (
                     t2_features[0]
                     .get("properties", {})
                     .get("eo:cloud_cover")
-                ),
+                ) if t2_features else None,
                 "acquisition_date_t1": (
                     t1_features[0]
                     .get("properties", {})
                     .get("datetime", "")[:10]
-                ),
+                ) if t1_features else "",
                 "acquisition_date_t2": (
                     t2_features[0]
                     .get("properties", {})
                     .get("datetime", "")[:10]
-                ),
+                ) if t2_features else "",
                 "cloud_mask_t1_pct": round(t1_prep.cloud_coverage_pct, 2),
                 "cloud_mask_t2_pct": round(t2_prep.cloud_coverage_pct, 2),
                 "preprocessing_steps": t1_prep.steps_applied,
                 "crs": str(scene_crs) if scene_crs else None,
                 "pixel_resolution_m": 10.0,
-                "bbox": bbox,
+                "bbox": list(aoi.bounds),
             }
+
+            # ----------------------------------------------------------
+            # Step 12: Export all output artefacts
+            # ----------------------------------------------------------
+
+            mark("report", "Exporting reports (GeoTIFF / GeoJSON / CSV / PDF) …")
+            result.outputs = self._export_outputs(
+                job_id=job_id,
+                date1=parsed_date1,
+                date2=parsed_date2,
+                mask_t1=mask_t1,
+                mask_t2=mask_t2,
+                ml_change_mask=ml_change_mask,
+                ndvi_result=ndvi_result,
+                ndbi_result=ndbi_result,
+                seg_result=seg_result,
+                area_change=result.area_change,
+                recommendations=result.recommendations,
+                aoi_geojson=aoi_geojson,
+                crs=scene_crs,
+                transform=scene_transform,
+                fe_t1=fe_t1,
+                fe_t2=fe_t2,
+                metadata=result.metadata,
+            )
 
             logger.info(
                 f"[{job_id}] Analysis complete in {elapsed:.1f} s."
@@ -650,6 +693,7 @@ class Orchestrator:
         date2: date,
         mask_t1,
         mask_t2,
+        ml_change_mask,
         ndvi_result,
         ndbi_result,
         seg_result,
@@ -660,6 +704,7 @@ class Orchestrator:
         transform: Optional[Affine],
         fe_t1: Optional[FeatureEngineeringResult] = None,
         fe_t2: Optional[FeatureEngineeringResult] = None,
+        metadata: Optional[dict] = None,
     ) -> dict[str, str]:
         """
         Persist all analysis artefacts and return a mapping of
@@ -713,6 +758,19 @@ class Orchestrator:
                 out["mask_t2"] = str(p)
             except Exception as exc:
                 logger.warning(f"GeoTIFF T2 mask export failed: {exc}")
+
+            if ml_change_mask is not None:
+                try:
+                    p = self._geotiff_exp.export_mask(
+                        mask=np.asarray(ml_change_mask).astype(np.int32),
+                        crs=crs,
+                        transform=transform,
+                        filename=f"{job_id}_change_mask.tif",
+                    )
+                    out["change_mask_tif"] = str(p)
+                except Exception as exc:
+                    import traceback
+                    logger.error(f"GeoTIFF Change mask export failed: {exc}\n{traceback.format_exc()}")
 
             if ndvi_result is not None:
                 try:
@@ -794,6 +852,42 @@ class Orchestrator:
         except Exception as exc:
             logger.warning(f"T2 mask PNG failed: {exc}")
 
+        if ml_change_mask is not None:
+            try:
+                p = paths.FIGURES_DIR / f"{job_id}_change_mask.png"
+                import PIL.Image
+                import traceback
+                
+                # Ensure it's a 2D numpy array
+                mask_2d = np.asarray(ml_change_mask).squeeze()
+                if mask_2d.ndim != 2:
+                    logger.error(f"Change mask has unexpected shape: {mask_2d.shape}")
+                else:
+                    logger.info(f"Change mask shape: {mask_2d.shape}, positive pixels: {int((mask_2d > 0).sum())}")
+                    
+                    # Create an RGBA image (transparent background)
+                    rgba = np.zeros((mask_2d.shape[0], mask_2d.shape[1], 4), dtype=np.uint8)
+                    
+                    # Apply cyan color where mask is positive
+                    rgba[mask_2d > 0] = [56, 189, 248, 200]
+                    
+                    img = PIL.Image.fromarray(rgba, mode="RGBA")
+                    
+                    # Only resize if reasonably small (avoids memory issues)
+                    if img.width < 512 and img.height < 512:
+                        if hasattr(PIL.Image, "Resampling"):
+                            resample_filter = PIL.Image.Resampling.NEAREST
+                        else:
+                            resample_filter = PIL.Image.NEAREST
+                        img = img.resize((img.width * 4, img.height * 4), resample=resample_filter)
+                    
+                    img.save(p)
+                    out["change_mask_png"] = str(p)
+                    logger.info(f"Change mask PNG saved: {p}")
+            except Exception as exc:
+                import traceback
+                logger.error(f"Change mask PNG failed: {exc}\n{traceback.format_exc()}")
+
         if fe_t1 is not None:
             try:
                 p = self._visualizer.save_rgb_png(
@@ -861,12 +955,13 @@ class Orchestrator:
 
         try:
             pdf_data = {
-                "metadata": {
+                "metadata": metadata or {
                     "date1": str(date1),
                     "date2": str(date2),
                 },
                 "area_change": area_change,
                 "recommendations": recommendations,
+                "outputs": out,
             }
             p = self._pdf_gen.generate(
                 pdf_data,

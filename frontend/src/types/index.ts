@@ -1,5 +1,5 @@
 // =============================================================================
-// GeoSentinel AI — TypeScript Types
+// GeoSentinel AI — TypeScript Types (v2.0)
 // =============================================================================
 
 export type JobStatus = "queued" | "running" | "completed" | "failed";
@@ -89,7 +89,18 @@ export interface AnalysisResult {
       changed_pct: number;
       urban_expansion_pixels: number;
       vegetation_loss_pixels: number;
+      water_loss_pixels: number;
       num_hotspots: number;
+      hotspots?: Array<{
+        center_row: number;
+        center_col: number;
+        center_lat: number | null;
+        center_lon: number | null;
+        area_pixels: number;
+        from_class: string;
+        to_class: string;
+      }>;
+      transition_matrix?: Record<string, Record<string, number>>;
     };
   };
   statistics: Record<string, unknown>;
@@ -97,8 +108,21 @@ export interface AnalysisResult {
   outputs: Record<string, string>;
   metadata: {
     elapsed_seconds?: number;
+    date1?: string;
+    date2?: string;
+    seasonal_shift?: boolean;
+    scene_t1_id?: string;
+    scene_t2_id?: string;
     cloud_cover_t1?: number;
     cloud_cover_t2?: number;
+    acquisition_date_t1?: string;
+    acquisition_date_t2?: string;
+    cloud_mask_t1_pct?: number;
+    cloud_mask_t2_pct?: number;
+    preprocessing_steps?: string[];
+    crs?: string;
+    pixel_resolution_m?: number;
+    bbox?: number[];
   };
   error?: string;
 }
@@ -133,17 +157,46 @@ export const HMR_CENTER: LatLng = {
 };
 
 // --------------------------------------------------------------------------
-// Land Cover
+// Land Cover — Neon glow palette for dark theme
 // --------------------------------------------------------------------------
 
 export const LAND_COVER_CLASSES: Record<
   number,
   { name: string; color: string }
 > = {
-  0: { name: "Background", color: "#000000" },
-  1: { name: "Urban", color: "#DC143C" },
-  2: { name: "Vegetation", color: "#228B22" },
-  3: { name: "Water", color: "#4169E1" },
-  4: { name: "Barren", color: "#D2B48C" },
-  5: { name: "Agriculture", color: "#DAA520" },
+  0: { name: "Background", color: "#1e293b" },
+  1: { name: "Urban",      color: "#f87171" },
+  2: { name: "Vegetation", color: "#34d399" },
+  3: { name: "Water",      color: "#38bdf8" },
+  4: { name: "Barren",     color: "#d4a574" },
+  5: { name: "Agriculture", color: "#fbbf24" },
+};
+
+// --------------------------------------------------------------------------
+// Pipeline Steps (for CyberTerminal display)
+// --------------------------------------------------------------------------
+
+export const PIPELINE_STEPS: Record<string, { label: string; color: string }> = {
+  aoi:              { label: "AOI",             color: "#a78bfa" },
+  search:           { label: "STAC Search",     color: "#38bdf8" },
+  download:         { label: "Download",        color: "#60a5fa" },
+  preprocess:       { label: "Preprocess",      color: "#fbbf24" },
+  features:         { label: "Features",        color: "#fb923c" },
+  ai:               { label: "AI Model",        color: "#f472b6" },
+  temporal:         { label: "Temporal",         color: "#34d399" },
+  area:             { label: "Area Stats",       color: "#2dd4bf" },
+  stats:            { label: "Statistics",       color: "#6ee7b7" },
+  recommendations:  { label: "Recommendations", color: "#fbbf24" },
+  report:           { label: "Report",          color: "#a3e635" },
+};
+
+// --------------------------------------------------------------------------
+// Severity styling
+// --------------------------------------------------------------------------
+
+export const SEVERITY_CONFIG: Record<Severity, { color: string; bg: string; label: string }> = {
+  CRITICAL: { color: "#f87171", bg: "rgba(248, 113, 113, 0.15)", label: "Critical" },
+  HIGH:     { color: "#fb923c", bg: "rgba(251, 146, 60, 0.15)",  label: "High" },
+  MEDIUM:   { color: "#fbbf24", bg: "rgba(251, 191, 36, 0.15)",  label: "Medium" },
+  LOW:      { color: "#34d399", bg: "rgba(52, 211, 153, 0.15)",  label: "Low" },
 };

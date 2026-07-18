@@ -345,8 +345,10 @@ class SiameseScenePredictor:
                 # We use tile coordinates from t1, they are identical for t2
                 merger.add_tile(tile, probs_np[i])
 
-        prediction = merger.get_prediction()[:H, :W]
         probabilities = merger.get_probabilities()[:, :H, :W]
+        # Force a strict 75% confidence threshold for "Change" (class 1)
+        # to aggressively suppress false-positive wobble.
+        prediction = (probabilities[1] > 0.75).astype(np.int32)
 
         confidence = probabilities.max(axis=0)
         mean_confidence = float(confidence.mean())

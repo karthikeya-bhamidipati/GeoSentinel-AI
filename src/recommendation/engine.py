@@ -375,8 +375,8 @@ class RecommendationEngine:
                 ctx["largest_km2"] = pixel_count_to_km2(
                     largest.area_pixels, pixel_resolution_m
                 )
-                ctx["center_lat"] = 17.3850  # Hyderabad default
-                ctx["center_lon"] = 78.4867
+                ctx["center_lat"] = largest.center_lat if largest.center_lat is not None else 17.3850
+                ctx["center_lon"] = largest.center_lon if largest.center_lon is not None else 78.4867
 
         # Area change context
         if area_change:

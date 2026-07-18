@@ -104,25 +104,27 @@ export function RightPanel({ result, isLoading, progressMessage, jobId }: RightP
       </div>
 
       {/* Tabs */}
-      <div className="tabs">
-        <button
-          className={`tab${activeTab === "results" ? " active" : ""}`}
-          onClick={() => setActiveTab("results")}
-          id="tab-results"
-        >
-          Statistics & Recommendations
-        </button>
-        <button
-          className={`tab${activeTab === "metadata" ? " active" : ""}`}
-          onClick={() => setActiveTab("metadata")}
-          id="tab-metadata"
-        >
-          Metadata
-        </button>
+      <div style={{ padding: "12px 16px", background: "var(--color-surface-alt)", borderBottom: "1px solid var(--color-border)", position: "relative", zIndex: 10, flexShrink: 0 }}>
+        <div className="tabs" style={{ margin: 0, width: "100%" }}>
+          <button
+            className={`tab${activeTab === "results" ? " active" : ""}`}
+            onClick={() => setActiveTab("results")}
+            id="tab-results"
+          >
+            Statistics & Recommendations
+          </button>
+          <button
+            className={`tab${activeTab === "metadata" ? " active" : ""}`}
+            onClick={() => setActiveTab("metadata")}
+            id="tab-metadata"
+          >
+            Metadata
+          </button>
+        </div>
       </div>
 
       {/* Content */}
-      <div className="overflow-y-auto flex-1">
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
         {activeTab === "results" && result && (
           <ResultsDashboard result={result} />
         )}

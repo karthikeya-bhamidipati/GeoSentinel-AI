@@ -1,28 +1,29 @@
 "use client";
 
-// =============================================================================
-// GeoSentinel AI — MapContainer Component
-// Professional GIS map with Leaflet, AOI drawing, HMR boundary enforcement
-// =============================================================================
-
-import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from "react";
-import type { AOIGeometry } from "@/types";
-import { HMR_BOUNDS, HMR_CENTER } from "@/types";
-import type { Layer } from "@/hooks/useMap";
-import { MapLegend } from "@/components/Map/MapLegend";
+import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef } from "react";
+import maplibregl from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
+import { HMR_CENTER, HMR_BOUNDS, AOIGeometry, AnalysisResult } from "@/types";
+import { Layer } from "@/hooks/useMap";
+import { IT_CORRIDOR_ZONE, OLD_CITY_ZONE } from "@/data/hyderabad-zones";
+import { Crosshair } from "lucide-react";
+import { useRasterHover, CLASS_COLORS } from "@/hooks/useRasterHover";
 
 export interface MapContainerRef {
-  startDrawing: () => void;
-  cancelDrawing: () => void;
+  flyTo: (center: [number, number], zoom: number) => void;
 }
 
 interface MapContainerProps {
   onAOIDrawn: (aoi: AOIGeometry | null) => void;
-  onDrawingModeChange: (active: boolean) => void;
-  onZoomChange?: (zoom: number) => void;
+  onDrawingModeChange: (isDrawing: boolean) => void;
+  onZoomChange: (zoom: number) => void;
   drawnAOI: AOIGeometry | null;
-  layers?: Layer[];
-  result?: any;
+  layers: Layer[];
+  result: AnalysisResult | null;
+  blinkMode: boolean;
+  blinkFrame: "T1" | "T2";
+  lakeRadarActive: boolean;
+  showZones: boolean;
 }
 
 export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
@@ -30,464 +31,477 @@ export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
   onDrawingModeChange,
   onZoomChange,
   drawnAOI,
-  layers = [],
+  layers,
   result,
+  blinkMode,
+  blinkFrame,
+  lakeRadarActive,
+  showZones
 }, ref) => {
-  const mapRef = useRef<HTMLDivElement>(null);
-  const leafletMapRef = useRef<any>(null);
-  const drawnLayerRef = useRef<any>(null);
-  const analysisLayersRef = useRef<Record<string, any>>({});
-  const baseLayersRef = useRef<Record<string, any>>({});
-  const refLayersRef = useRef<Record<string, any>>({});
-  const [isDrawing, setIsDrawing] = useState(false);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<maplibregl.Map | null>(null);
+  const [mapLoaded, setMapLoaded] = useState(false);
+  const [isDrawingUI, setIsDrawingUI] = useState(false);
+  const [hotspotHover, setHotspotHover] = useState<{x: number, y: number, props: any} | null>(null);
+
+  // Pass map instance only after it's loaded (mapLoaded triggers re-render)
+  const rasterHover = useRasterHover(mapLoaded ? mapRef.current : null, result, layers);
 
   useEffect(() => {
-    if (!mapRef.current || leafletMapRef.current) return;
-
-    const init = async () => {
-      const L = await import("leaflet");
-      // @ts-ignore
-      await import("leaflet/dist/leaflet.css");
-
-      const hmrBounds = L.latLngBounds(
-        [HMR_BOUNDS.minLat, HMR_BOUNDS.minLng],
-        [HMR_BOUNDS.maxLat, HMR_BOUNDS.maxLng]
-      );
-
-      const map = L.map(mapRef.current!, {
-        center: [HMR_CENTER.lat, HMR_CENTER.lng],
-        zoom: 11,
-        minZoom: 9,
-        maxZoom: 18,
-        maxBounds: hmrBounds,
-        maxBoundsViscosity: 0.9,
-        zoomControl: false,
-        attributionControl: true,
-      });
-
-      // Zoom control — top right
-      L.control.zoom({ position: "topright" }).addTo(map);
-
-      // Scale control — bottom right
-      L.control.scale({ position: "bottomright", imperial: false }).addTo(map);
-
-      // --- Base layers ---
-      const satelliteLayer = L.tileLayer(
-        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        {
-          attribution: "Tiles © Esri — Esri, i-cubed, USDA, USGS, AEX, GeoEye",
-          maxZoom: 18,
-        }
-      ).addTo(map);
-
-      const osmLayer = L.tileLayer(
-        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-        {
-          attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-          maxZoom: 19,
-        }
-      );
-
-      baseLayersRef.current["satellite"] = satelliteLayer;
-      baseLayersRef.current["osm"] = osmLayer;
-
-      // --- HMR dim overlay (darken outside boundary) ---
-      const outerBounds: [number, number][] = [
-        [-85, -180], [85, -180], [85, 180], [-85, 180], [-85, -180],
-      ];
-      const innerBounds: [number, number][] = [
-        [HMR_BOUNDS.minLat, HMR_BOUNDS.minLng],
-        [HMR_BOUNDS.minLat, HMR_BOUNDS.maxLng],
-        [HMR_BOUNDS.maxLat, HMR_BOUNDS.maxLng],
-        [HMR_BOUNDS.maxLat, HMR_BOUNDS.minLng],
-        [HMR_BOUNDS.minLat, HMR_BOUNDS.minLng],
-      ];
-      const dimOverlay = L.polygon([outerBounds, innerBounds], {
-        color: "transparent",
-        fillColor: "#000000",
-        fillOpacity: 0.35,
-        interactive: false,
-      });
-
-      // --- HMR boundary ring ---
-      const hmrRing = L.rectangle(hmrBounds, {
-        color: "#1d6fa4",
-        weight: 2,
-        fill: false,
-        dashArray: "6, 4",
-        interactive: false,
-        opacity: 0.8,
-      });
-
-      // --- HMR label ---
-      const center = hmrBounds.getCenter();
-      const hmrLabel = L.marker([HMR_BOUNDS.maxLat - 0.02, center.lng], {
-        icon: L.divIcon({
-          html: `<div style="background:rgba(29,111,164,0.85);color:#fff;padding:2px 8px;border-radius:3px;font-size:10px;font-family:Inter,sans-serif;font-weight:600;white-space:nowrap;letter-spacing:0.06em;pointer-events:none;">HYDERABAD METROPOLITAN REGION</div>`,
-          className: "",
-          iconAnchor: [80, 0],
-        }),
-        interactive: false,
-      });
-
-      const hmrGroup = L.featureGroup([dimOverlay, hmrRing, hmrLabel]).addTo(map);
-      refLayersRef.current["hmr_boundary"] = hmrGroup;
-
-      // --- Drawn items layer ---
-      const drawnItems = new L.FeatureGroup();
-      map.addLayer(drawnItems);
-      drawnLayerRef.current = drawnItems;
-
-      // --- Zoom change callback ---
-      map.on("zoom", () => {
-        onZoomChange?.(map.getZoom());
-      });
-      onZoomChange?.(map.getZoom());
-
-      // --- Broadcast coordinates to status bar ---
-      map.on("mousemove", (e: any) => {
-        window.dispatchEvent(
-          new CustomEvent("map:mousemove", {
-            detail: { lat: e.latlng.lat, lng: e.latlng.lng },
-          })
-        );
-      });
-
-      leafletMapRef.current = map;
-    };
-
-    init().catch(console.error);
-
-    return () => {
-      leafletMapRef.current?.remove();
-      leafletMapRef.current = null;
-    };
+    const handler = (e: any) => setHotspotHover(e.detail);
+    window.addEventListener('map:hotspotHover', handler);
+    return () => window.removeEventListener('map:hotspotHover', handler);
   }, []);
 
-  // Sync drawn AOI state with map layer
-  useEffect(() => {
-    if (!drawnLayerRef.current || !leafletMapRef.current) return;
-    
-    // Always clear existing drawing first to ensure it updates when a new history record is selected
-    drawnLayerRef.current.clearLayers();
-    
-    if (drawnAOI) {
-      import("leaflet").then(L => {
-        // Redraw based on state
-        const coords = drawnAOI.coordinates[0] as number[][];
-        const lats = coords.map((c) => c[1]);
-        const lngs = coords.map((c) => c[0]);
-        const bounds = L.latLngBounds(
-          [Math.min(...lats), Math.min(...lngs)],
-          [Math.max(...lats), Math.max(...lngs)]
-        );
-        
-        const rect = L.rectangle(bounds, {
-          color: "#e67e22",
-          weight: 2.5,
-          fillColor: "#e67e22",
-          fillOpacity: 0.12,
-          dashArray: undefined,
-        });
-        
-        if (drawnLayerRef.current && leafletMapRef.current) {
-          drawnLayerRef.current.addLayer(rect);
-          leafletMapRef.current.fitBounds(bounds, { padding: [50, 50] });
-        }
-      });
-    }
-  }, [drawnAOI]);
-
-  // Manage analysis overlays based on layers state and result
-  useEffect(() => {
-    if (!leafletMapRef.current) return;
-    
-    const initOverlays = async () => {
-      const L = await import("leaflet");
-      const map = leafletMapRef.current;
-      
-      const layerIdToOutputKey: Record<string, string> = {
-        "image_t1": "image_t1_png",
-        "image_t2": "image_t2_png",
-        "segmentation_t1": "mask_t1_png",
-        "segmentation_t2": "mask_t2_png",
-        "ndvi_change": "ndvi_delta_png",
-        "ndbi_change": "ndbi_delta_png",
-      };
-
-      layers.forEach((layer) => {
-        if (layer.type === "base") {
-          const l = baseLayersRef.current[layer.id];
-          if (l) {
-            if (layer.visible && !map.hasLayer(l)) {
-              map.addLayer(l);
-            } else if (!layer.visible && map.hasLayer(l)) {
-              map.removeLayer(l);
-            }
-          }
-        } else if (layer.type === "reference") {
-          if (layer.id === "hmr_boundary") {
-            const l = refLayersRef.current["hmr_boundary"];
-            if (l) {
-               if (layer.visible && !map.hasLayer(l)) {
-                 map.addLayer(l);
-               } else if (!layer.visible && map.hasLayer(l)) {
-                 map.removeLayer(l);
-               }
-            }
-          } else if (layer.id === "aoi") {
-             if (drawnLayerRef.current) {
-                 if (layer.visible && !map.hasLayer(drawnLayerRef.current)) {
-                     map.addLayer(drawnLayerRef.current);
-                 } else if (!layer.visible && map.hasLayer(drawnLayerRef.current)) {
-                     map.removeLayer(drawnLayerRef.current);
-                 }
-             }
-          }
-        } else if (layer.type === "analysis") {
-          const outputKey = layerIdToOutputKey[layer.id];
-          const fileUrl = result?.outputs?.[outputKey];
-          
-          // If layer should be visible and we have a URL + bounds
-          if (layer.visible && fileUrl && drawnAOI) {
-            if (!analysisLayersRef.current[layer.id]) {
-              // Calculate bounds from drawnAOI
-              const coords = drawnAOI.coordinates[0] as number[][];
-              const lats = coords.map((c) => c[1]);
-              const lngs = coords.map((c) => c[0]);
-              const bounds = L.latLngBounds(
-                [Math.min(...lats), Math.min(...lngs)],
-                [Math.max(...lats), Math.max(...lngs)]
-              );
-
-              const apiBase = process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}/api/v1` : "/api/v1";
-              const imageUrl = `${apiBase}/download/${result.job_id}/${outputKey}`;
-
-              const imageOverlay = L.imageOverlay(imageUrl, bounds, {
-                opacity: 0.8,
-                interactive: true,
-              }).addTo(map);
-
-              analysisLayersRef.current[layer.id] = imageOverlay;
-            }
-          } else {
-            // If layer should be hidden or we lack data, remove it if it exists
-            if (analysisLayersRef.current[layer.id]) {
-              map.removeLayer(analysisLayersRef.current[layer.id]);
-              delete analysisLayersRef.current[layer.id];
-            }
-          }
-        }
-      });
-    };
-    
-    initOverlays();
-  }, [layers, result, drawnAOI]);
-
-  const handleDrawRectangle = async () => {
-    if (!leafletMapRef.current) return;
-
-    const L = await import("leaflet");
-
-    drawnLayerRef.current?.clearLayers();
-
-    setIsDrawing(true);
-    onDrawingModeChange(true);
-
-    const map = leafletMapRef.current;
-    map.dragging.disable();
-    if (mapRef.current) mapRef.current.style.cursor = "crosshair";
-
-    let startLatLng: any = null;
-    let rectangleLayer: any = null;
-
-    const onMouseDown = (e: any) => {
-      startLatLng = e.latlng;
-      map.off("mousedown", onMouseDown);
-      map.on("mousemove", onMouseMove);
-      map.on("mouseup", onMouseUp);
-    };
-
-    const onMouseMove = (e: any) => {
-      if (!startLatLng) return;
-      if (rectangleLayer) drawnLayerRef.current.removeLayer(rectangleLayer);
-
-      const bounds = L.latLngBounds(startLatLng, e.latlng);
-      rectangleLayer = L.rectangle(bounds, {
-        color: "#e67e22",
-        weight: 2,
-        fillColor: "#e67e22",
-        fillOpacity: 0.15,
-        dashArray: "5, 5",
-      });
-      drawnLayerRef.current.addLayer(rectangleLayer);
-    };
-
-    const onMouseUp = (e: any) => {
-      map.off("mousemove", onMouseMove);
-      map.off("mouseup", onMouseUp);
-      map.dragging.enable();
-      if (mapRef.current) mapRef.current.style.cursor = "";
-
-      if (!startLatLng || !rectangleLayer) {
-        setIsDrawing(false);
-        onDrawingModeChange(false);
-        return;
-      }
-
-      const bounds = L.latLngBounds(startLatLng, e.latlng);
-      const sw = bounds.getSouthWest();
-      const ne = bounds.getNorthEast();
-
-      if (Math.abs(sw.lat - ne.lat) < 0.001 || Math.abs(sw.lng - ne.lng) < 0.001) {
-        drawnLayerRef.current.removeLayer(rectangleLayer);
-        setIsDrawing(false);
-        onDrawingModeChange(false);
-        return;
-      }
-
-      // Final style for drawn AOI
-      rectangleLayer.setStyle({
-        color: "#e67e22",
-        weight: 2.5,
-        fillColor: "#e67e22",
-        fillOpacity: 0.12,
-        dashArray: undefined,
-      });
-
-      const aoi: AOIGeometry = {
-        type: "Polygon",
-        coordinates: [[
-          [sw.lng, sw.lat],
-          [ne.lng, sw.lat],
-          [ne.lng, ne.lat],
-          [sw.lng, ne.lat],
-          [sw.lng, sw.lat],
-        ]],
-      };
-
-      onAOIDrawn(aoi);
-      setIsDrawing(false);
-      onDrawingModeChange(false);
-    };
-
-    const cancelDrawing = () => {
-      map.off("mousedown", onMouseDown);
-      map.off("mousemove", onMouseMove);
-      map.off("mouseup", onMouseUp);
-      map.dragging.enable();
-      if (mapRef.current) mapRef.current.style.cursor = "";
-      if (rectangleLayer) drawnLayerRef.current.removeLayer(rectangleLayer);
-      
-      setIsDrawing(false);
-      onDrawingModeChange(false);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        cancelDrawing();
-      }
-    };
-
-    document.addEventListener("keydown", onKeyDown);
-
-    map.on("mousedown", onMouseDown);
-  };
+  const drawState = useRef<{
+    active: boolean;
+    startPoint: [number, number] | null;
+    currentPoint: [number, number] | null;
+  }>({ active: false, startPoint: null, currentPoint: null });
 
   useImperativeHandle(ref, () => ({
-    startDrawing: handleDrawRectangle,
-    cancelDrawing: () => {
-      // Internal cancel logic is already bound to escape, but we can trigger it
-      const event = new KeyboardEvent('keydown', { key: 'Escape' });
-      document.dispatchEvent(event);
+    flyTo: (center: [number, number], zoom: number) => {
+      if (mapRef.current) {
+        mapRef.current.flyTo({ center, zoom, speed: 1.2, curve: 1.42 });
+      }
     }
   }));
 
-  // Allow MapContainer to turn off drawing from external trigger
+  // Initialize Map
   useEffect(() => {
-    // If the external drawing mode is toggled while we are drawing, we don't have a direct way to cancel
-    // unless we extract cancelDrawing. For simplicity, we just rely on Escape and MapToolbar clicks.
-  }, []);
+    if (!mapContainerRef.current || mapRef.current) return;
+
+    const map = new maplibregl.Map({
+      container: mapContainerRef.current,
+      style: {
+        version: 8,
+        sources: {
+          'dark-base': { type: 'raster', tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'], tileSize: 256 },
+          'osm-base': { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256 },
+          'satellite-base': { type: 'raster', tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], tileSize: 256 }
+        },
+        layers: [
+          { id: 'dark-base-layer', type: 'raster', source: 'dark-base', minzoom: 0, maxzoom: 22, layout: { visibility: 'visible' } },
+          { id: 'osm-base-layer', type: 'raster', source: 'osm-base', minzoom: 0, maxzoom: 22, layout: { visibility: 'none' } },
+          { id: 'satellite-base-layer', type: 'raster', source: 'satellite-base', minzoom: 0, maxzoom: 22, layout: { visibility: 'none' } }
+        ]
+      },
+      center: [HMR_CENTER.lng, HMR_CENTER.lat],
+      zoom: 11,
+      minZoom: 8,
+      maxBounds: [[76.5, 15.5], [80.5, 19.5]], // ~150km Buffer around Hyderabad
+      pitch: 0,
+      bearing: 0,
+      attributionControl: false
+    });
+
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-left');
+
+    map.on('load', () => {
+      setMapLoaded(true);
+      mapRef.current = map;
+
+      // Setup Zones
+      map.addSource('zones', { type: 'geojson', data: { type: 'FeatureCollection', features: [IT_CORRIDOR_ZONE, OLD_CITY_ZONE] }});
+      map.addLayer({ id: 'zones-fill', type: 'fill', source: 'zones', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.2 }, layout: { visibility: 'none' }});
+      map.addLayer({ id: 'zones-line', type: 'line', source: 'zones', paint: { 'line-color': ['get', 'color'], 'line-width': 2 }, layout: { visibility: 'none' }});
+
+      // Setup Native AOI Draw Layer
+      map.addSource('custom-aoi-draw', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.addLayer({ id: 'custom-aoi-fill', type: 'fill', source: 'custom-aoi-draw', paint: { 'fill-color': '#a78bfa', 'fill-opacity': 0.1 } });
+      map.addLayer({ id: 'custom-aoi-glow', type: 'line', source: 'custom-aoi-draw', paint: { 'line-color': '#a78bfa', 'line-width': 8, 'line-blur': 5, 'line-opacity': 0.5 } });
+      map.addLayer({ id: 'custom-aoi-line', type: 'line', source: 'custom-aoi-draw', paint: { 'line-color': '#a78bfa', 'line-width': 2 } });
+    });
+
+    map.on('zoom', () => { onZoomChange(map.getZoom()); });
+
+    const handleFlyTo = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      console.log("MapContainer received map:flyTo event", customEvent.detail);
+      if (customEvent.detail) {
+        map.flyTo({ 
+          center: customEvent.detail.center, 
+          zoom: customEvent.detail.zoom, 
+          speed: 1.2, 
+          curve: 1.42 
+        });
+        console.log("map.flyTo executed!");
+      }
+    };
+    window.addEventListener('map:flyTo', handleFlyTo);
+
+    // Native Drawing Interaction Logic
+    map.on('click', (e) => {
+      if (!drawState.current.active) return;
+      const pt: [number, number] = [e.lngLat.lng, e.lngLat.lat];
+      
+      if (!drawState.current.startPoint) {
+        drawState.current.startPoint = pt;
+        drawState.current.currentPoint = pt;
+      } else {
+        const p1 = drawState.current.startPoint;
+        const p2 = pt;
+        const polygon: AOIGeometry = {
+          type: "Polygon",
+          coordinates: [[[p1[0], p1[1]], [p2[0], p1[1]], [p2[0], p2[1]], [p1[0], p2[1]], [p1[0], p1[1]]]]
+        };
+        drawState.current.active = false;
+        drawState.current.startPoint = null;
+        drawState.current.currentPoint = null;
+        setIsDrawingUI(false);
+        onDrawingModeChange(false);
+        onAOIDrawn(polygon);
+        map.getCanvas().style.cursor = '';
+      }
+    });
+
+    map.on('mousemove', (e) => {
+      window.dispatchEvent(new CustomEvent('map:mousemove', { detail: { lat: e.lngLat.lat, lng: e.lngLat.lng } }));
+
+      if (!drawState.current.active || !drawState.current.startPoint) return;
+      drawState.current.currentPoint = [e.lngLat.lng, e.lngLat.lat];
+      const p1 = drawState.current.startPoint;
+      const p2 = drawState.current.currentPoint;
+      const polygon: AOIGeometry = {
+        type: "Polygon",
+        coordinates: [[[p1[0], p1[1]], [p2[0], p1[1]], [p2[0], p2[1]], [p1[0], p2[1]], [p1[0], p1[1]]]]
+      };
+      const source = map.getSource('custom-aoi-draw') as maplibregl.GeoJSONSource;
+      if (source) source.setData({ type: 'Feature', geometry: polygon as any, properties: {} });
+    });
+
+    return () => {
+      window.removeEventListener('map:flyTo', handleFlyTo);
+      map.remove();
+    };
+  }, [onZoomChange, onAOIDrawn, onDrawingModeChange]);
+
+  // Handle Drawn AOI sync (from parent)
+  useEffect(() => {
+    if (!mapRef.current || !mapLoaded) return;
+    const source = mapRef.current.getSource('custom-aoi-draw') as maplibregl.GeoJSONSource;
+    if (source) {
+      if (drawnAOI) {
+        source.setData({ type: 'Feature', geometry: drawnAOI as any, properties: {} });
+      } else if (!drawState.current.active) {
+        // If not actively drawing and drawnAOI is null, clear it
+        source.setData({ type: 'FeatureCollection', features: [] });
+      }
+    }
+  }, [drawnAOI, mapLoaded]);
+
+  // Handle Layer Visibility & Opacity
+  useEffect(() => {
+    if (!mapRef.current || !mapLoaded) return;
+    const map = mapRef.current;
+
+    // Sync Base Maps
+    const isDarkVisible = layers.find(l => l.id === "dark")?.visible ?? true;
+    const isOsmVisible = layers.find(l => l.id === "osm")?.visible ?? false;
+    const isSatelliteVisible = layers.find(l => l.id === "satellite")?.visible ?? false;
+    
+    if (map.getLayer('dark-base-layer')) map.setLayoutProperty('dark-base-layer', 'visibility', isDarkVisible ? 'visible' : 'none');
+    if (map.getLayer('osm-base-layer')) map.setLayoutProperty('osm-base-layer', 'visibility', isOsmVisible ? 'visible' : 'none');
+    if (map.getLayer('satellite-base-layer')) map.setLayoutProperty('satellite-base-layer', 'visibility', isSatelliteVisible ? 'visible' : 'none');
+
+    // Sync Reference Layers (AOI)
+    const isAoiVisible = layers.find(l => l.id === "aoi")?.visible ?? true;
+    if (map.getLayer('custom-aoi-fill')) map.setLayoutProperty('custom-aoi-fill', 'visibility', isAoiVisible ? 'visible' : 'none');
+    if (map.getLayer('custom-aoi-glow')) map.setLayoutProperty('custom-aoi-glow', 'visibility', isAoiVisible ? 'visible' : 'none');
+    if (map.getLayer('custom-aoi-line')) map.setLayoutProperty('custom-aoi-line', 'visibility', isAoiVisible ? 'visible' : 'none');
+
+    // Custom Raster Sources for Results
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}/api/v1` : "/api/v1";
+    
+    layers.forEach(layer => {
+      if (layer.type === "analysis" && result) {
+        const sourceId = `source-${layer.id}`;
+        const layerId = `layer-${layer.id}`;
+        let fileType = "";
+        
+        if (layer.id === "hotspots") {
+          const sourceId = `source-hotspots`;
+          const layerIdGlow = `layer-hotspots-glow`;
+          const layerIdCore = `layer-hotspots-core`;
+          
+          const hotspotsData = (result.temporal_stats?.segmentation_change as any)?.hotspots || [];
+          console.log(`Hotspots layer: ${hotspotsData.length} hotspots found`, hotspotsData);
+          
+          // Filter out hotspots with missing coordinates
+          const validHotspots = hotspotsData.filter((h: any) => h.center_lat != null && h.center_lon != null);
+          
+          const features = validHotspots.map((h: any) => ({
+            type: "Feature",
+            geometry: {
+              type: "Point",
+              coordinates: [h.center_lon, h.center_lat]
+            },
+            properties: {
+              area: h.area_pixels,
+              transition: `${h.from_class} → ${h.to_class}`
+            }
+          }));
+          
+          const geojson = {
+            type: "FeatureCollection",
+            features: features
+          };
+          
+          const existingSource = map.getSource(sourceId) as maplibregl.GeoJSONSource;
+          if (!existingSource) {
+            map.addSource(sourceId, { type: 'geojson', data: geojson as any });
+            
+            map.addLayer({
+              id: layerIdGlow,
+              type: 'circle',
+              source: sourceId,
+              paint: {
+                'circle-color': '#f87171',
+                'circle-radius': ['+', 10, ['min', 40, ['/', ['get', 'area'], 50]]], // scale by area
+                'circle-blur': 1,
+                'circle-opacity': 0.6
+              },
+              layout: { visibility: 'none' }
+            });
+            
+            map.addLayer({
+              id: layerIdCore,
+              type: 'circle',
+              source: sourceId,
+              paint: {
+                'circle-color': '#f87171',
+                'circle-radius': 4,
+                'circle-stroke-width': 2,
+                'circle-stroke-color': '#fff'
+              },
+              layout: { visibility: 'none' }
+            });
+            
+            // Interaction
+            map.on('mouseenter', layerIdCore, (e) => {
+               map.getCanvas().style.cursor = 'pointer';
+               if (e.features && e.features[0]) {
+                 window.dispatchEvent(new CustomEvent('map:hotspotHover', { detail: { x: e.point.x, y: e.point.y, props: e.features[0].properties } }));
+               }
+            });
+            map.on('mouseleave', layerIdCore, () => {
+               map.getCanvas().style.cursor = '';
+               window.dispatchEvent(new CustomEvent('map:hotspotHover', { detail: null }));
+            });
+            map.on('mousemove', layerIdCore, (e) => {
+               if (e.features && e.features[0]) {
+                 window.dispatchEvent(new CustomEvent('map:hotspotHover', { detail: { x: e.point.x, y: e.point.y, props: e.features[0].properties } }));
+               }
+            });
+          } else {
+             existingSource.setData(geojson as any);
+          }
+          
+          map.setLayoutProperty(layerIdGlow, 'visibility', layer.visible ? 'visible' : 'none');
+          map.setLayoutProperty(layerIdCore, 'visibility', layer.visible ? 'visible' : 'none');
+          
+          return; // Skip raster logic
+        }
+
+        if (layer.id === "image_t1") fileType = "image_t1_png";
+        else if (layer.id === "image_t2") fileType = "image_t2_png";
+        else if (layer.id === "segmentation_t1") fileType = "mask_t1_png";
+        else if (layer.id === "segmentation_t2") fileType = "mask_t2_png";
+        else if (layer.id === "change_mask") fileType = "change_mask_png";
+        else if (layer.id === "ndvi_change") fileType = "ndvi_delta_png";
+        else if (layer.id === "ndbi_change") fileType = "ndbi_delta_png";
+
+        if (fileType && result.outputs && result.outputs[fileType as keyof typeof result.outputs]) {
+          const bbox = result.metadata?.bbox || [76.5, 15.5, 80.5, 19.5]; // Fallback bounds
+          const coordinates = [
+            [bbox[0], bbox[3]], // top-left
+            [bbox[2], bbox[3]], // top-right
+            [bbox[2], bbox[1]], // bottom-right
+            [bbox[0], bbox[1]]  // bottom-left
+          ];
+          const newUrl = `${apiBase}/download/${result.job_id}/${fileType}`;
+
+          const existingSource = map.getSource(sourceId) as any;
+          const currentUrl = existingSource ? (existingSource._currentUrl || existingSource.url) : null;
+          
+          if (!existingSource || currentUrl !== newUrl) {
+            if (map.getLayer(layerId)) map.removeLayer(layerId);
+            if (existingSource) map.removeSource(sourceId);
+            
+            map.addSource(sourceId, {
+              type: 'image',
+              url: newUrl,
+              coordinates: coordinates as any
+            });
+            
+            map.addLayer({
+              id: layerId,
+              type: 'raster',
+              source: sourceId,
+              paint: {
+                'raster-opacity': layer.opacity ?? 0.8,
+                'raster-resampling': 'nearest'
+              },
+              layout: { visibility: 'none' }
+            });
+            (map.getSource(sourceId) as any)._currentUrl = newUrl;
+          }
+          
+          // Update visibility and opacity
+          let isVis = layer.visible;
+          if (blinkMode && (layer.id === "image_t1" || layer.id === "segmentation_t1")) {
+            isVis = blinkFrame === "T1";
+          }
+          if (blinkMode && (layer.id === "image_t2" || layer.id === "segmentation_t2")) {
+            isVis = blinkFrame === "T2";
+          }
+
+          map.setLayoutProperty(layerId, 'visibility', isVis ? 'visible' : 'none');
+          map.setPaintProperty(layerId, 'raster-opacity', layer.opacity ?? 0.8);
+        } else if (result.outputs && !result.outputs[fileType as keyof typeof result.outputs]) {
+          // If file is not available for this job, hide the layer if it exists
+          if (map.getLayer(layerId)) {
+            map.setLayoutProperty(layerId, 'visibility', 'none');
+          }
+        }
+      }
+    });
+
+  }, [layers, mapLoaded, result, blinkMode, blinkFrame]);
+
+  // Handle Zones Visibility
+  useEffect(() => {
+    if (!mapRef.current || !mapLoaded) return;
+    const map = mapRef.current;
+    if (map.getLayer('zones-fill')) {
+      map.setLayoutProperty('zones-fill', 'visibility', showZones ? 'visible' : 'none');
+      map.setLayoutProperty('zones-line', 'visibility', showZones ? 'visible' : 'none');
+    }
+  }, [showZones, mapLoaded]);
+
+  const handleDrawRect = () => {
+    if (mapRef.current) {
+      drawState.current.active = true;
+      drawState.current.startPoint = null;
+      drawState.current.currentPoint = null;
+      setIsDrawingUI(true);
+      onDrawingModeChange(true);
+      mapRef.current.getCanvas().style.cursor = 'crosshair';
+      
+      // Clear current source
+      const source = mapRef.current.getSource('custom-aoi-draw') as maplibregl.GeoJSONSource;
+      if (source) source.setData({ type: 'FeatureCollection', features: [] });
+      onAOIDrawn(null);
+    }
+  };
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%" }}>
-      {/* Map Canvas */}
-      <div ref={mapRef} style={{ width: "100%", height: "100%" }} id="map-canvas" />
-
-      {/* Dynamic Floating Legend */}
-      <MapLegend layers={layers} />
-
-      {/* Drawing instruction tooltip */}
-      {isDrawing && (
-        <div
-          style={{
-            position: "absolute",
-            top: "var(--space-3)",
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 500,
-            background: "var(--color-surface)",
-            border: "1px solid var(--color-primary-border)",
-            borderRadius: "var(--radius-sm)",
-            padding: "6px 14px",
-            fontSize: "var(--font-size-sm)",
-            fontWeight: 500,
-            color: "var(--color-primary)",
-            boxShadow: "var(--shadow-sm)",
-            pointerEvents: "none",
-            whiteSpace: "nowrap",
-          }}
-        >
-          Click and drag to define your Area of Interest
+    <div style={{ position: "absolute", inset: 0, background: "var(--color-bg)" }}>
+      <div ref={mapContainerRef} style={{ width: '100%', height: '100%', outline: 'none' }} />
+      
+      {hotspotHover && (
+        <div style={{
+          position: 'absolute',
+          left: hotspotHover.x + 15,
+          top: hotspotHover.y + 15,
+          background: 'var(--color-surface-glass)',
+          backdropFilter: 'blur(12px)',
+          border: '1px solid var(--color-border)',
+          padding: '8px 12px',
+          borderRadius: '6px',
+          pointerEvents: 'none',
+          zIndex: 1000,
+          boxShadow: 'var(--shadow-lg)',
+          minWidth: '150px'
+        }}>
+          <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '4px' }}>Change Hotspot</div>
+          <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', display: 'flex', justifyContent: 'space-between' }}>
+            <span>Transition:</span>
+            <span style={{ color: 'var(--color-text)' }}>{hotspotHover.props.transition}</span>
+          </div>
+          <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', display: 'flex', justifyContent: 'space-between' }}>
+            <span>Area:</span>
+            <span style={{ color: 'var(--color-text)' }}>{hotspotHover.props.area} px</span>
+          </div>
         </div>
       )}
 
-      {/* Map Toolbar (Restored) */}
-      <div
-        style={{
-          position: "absolute",
-          top: "80px",
-          right: "12px",
-          zIndex: 400,
-          display: "flex",
-          flexDirection: "column",
-          gap: "8px",
-        }}
-      >
-        <button
+      {rasterHover && !hotspotHover && (
+        <div style={{
+          position: 'absolute',
+          left: rasterHover.x + 15,
+          top: rasterHover.y + 15,
+          background: 'var(--color-surface-glass)',
+          backdropFilter: 'blur(12px)',
+          border: `1px solid ${
+            CLASS_COLORS.find(c => c.name === rasterHover.className)?.rgb 
+              ? `rgba(${CLASS_COLORS.find(c => c.name === rasterHover.className)?.rgb.join(',')}, 0.5)`
+              : 'var(--color-border)'
+          }`,
+          padding: '8px 12px',
+          borderRadius: '6px',
+          pointerEvents: 'none',
+          zIndex: 999,
+          boxShadow: 'var(--shadow-lg)',
+          minWidth: '130px'
+        }}>
+          <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginBottom: '2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Classification {rasterHover.date}
+          </div>
+          <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ 
+              width: '10px', height: '10px', borderRadius: '50%', 
+              backgroundColor: `rgb(${CLASS_COLORS.find(c => c.name === rasterHover.className)?.rgb.join(',')})`
+            }}></span>
+            {rasterHover.className}
+          </div>
+          <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', display: 'flex', justifyContent: 'space-between' }}>
+            <span>Total Area:</span>
+            <span style={{ color: 'var(--color-text)', fontWeight: 500 }}>{rasterHover.area} km²</span>
+          </div>
+        </div>
+      )}
+
+      {/* Map Toolbar */}
+      <div className="map-toolbar">
+        <button 
           id="map-tool-draw-rect"
-          type="button"
-          onMouseDown={(e) => e.stopPropagation()}
-          onMouseUp={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (isDrawing) {
-              const event = new KeyboardEvent('keydown', { key: 'Escape' });
-              document.dispatchEvent(event);
-            } else {
-              handleDrawRectangle();
-            }
-          }}
+          onClick={handleDrawRect}
+          className="map-toolbar-btn"
           style={{
-            width: "36px",
-            height: "36px",
-            background: isDrawing ? "var(--color-accent)" : "var(--color-surface)",
-            color: isDrawing ? "#fff" : "var(--color-text)",
-            border: "1px solid var(--color-border)",
-            borderRadius: "4px",
-            boxShadow: "var(--shadow-sm)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            transition: "all 0.2s",
+            background: isDrawingUI ? "var(--color-primary)" : "var(--color-surface-glass)",
+            color: isDrawingUI ? "#000" : "var(--color-text)",
           }}
-          title={isDrawing ? "Cancel Drawing" : "Draw Area of Interest"}
+          title={isDrawingUI ? "Click & Drag to Draw Bounding Box" : "Draw AOI Bounding Box"}
         >
-          {isDrawing ? "❌" : "📐"}
+          <Crosshair size={20} />
         </button>
       </div>
+
+      {lakeRadarActive && (
+        <div style={{
+          position: "absolute",
+          top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+          zIndex: 5, pointerEvents: "none",
+          width: "300px", height: "300px",
+          border: "2px solid rgba(16, 185, 129, 0.5)",
+          borderRadius: "50%",
+          boxShadow: "inset 0 0 50px rgba(16, 185, 129, 0.1)",
+          display: "flex", alignItems: "center", justifyContent: "center"
+        }}>
+          <div style={{
+            position: "absolute", width: "100%", height: "100%",
+            background: "conic-gradient(from 0deg, transparent 0deg, transparent 270deg, rgba(16, 185, 129, 0.2) 360deg)",
+            borderRadius: "50%",
+            animation: "radar-spin 2s linear infinite"
+          }} />
+          <style dangerouslySetInnerHTML={{__html: `
+            @keyframes radar-spin { 100% { transform: rotate(360deg); } }
+          `}} />
+        </div>
+      )}
     </div>
   );
 });
+
+MapContainer.displayName = "MapContainer";

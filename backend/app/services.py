@@ -184,16 +184,48 @@ class JobQueue:
         return self._jobs.get(job_id)
 
     def get_result(self, job_id: str) -> Optional[Any]:
-        """
-        Return the result of a completed job, or None.
-        """
-
+        """Retrieve the final result of a job."""
         record = self._jobs.get(job_id)
-
-        if record and record.status == JobStatus.COMPLETED:
+        if record:
             return record.result
-
         return None
+
+    def delete_job(self, job_id: str) -> bool:
+        """Delete a job from the queue and remove its output files and history from disk."""
+        from src.utils.paths import paths
+
+        if job_id in self._jobs:
+            del self._jobs[job_id]
+        
+        # Remove all output files that start with the job_id
+        try:
+            deleted_count = 0
+            for d in [paths.FIGURES_DIR, paths.REPORTS_DIR, paths.OUTPUT_DIR]:
+                if not d.exists():
+                    continue
+                for p in d.rglob(f"{job_id}_*"):
+                    if p.is_file():
+                        try:
+                            p.unlink()
+                            deleted_count += 1
+                            logger.info(f"Deleted output file: {p}")
+                        except Exception as e:
+                            logger.warning(f"Failed to delete file {p}: {e}")
+            logger.info(f"Deleted {deleted_count} output files for job {job_id}.")
+        except Exception as e:
+            logger.error(f"Failed to search for job output files for {job_id}: {e}")
+
+        
+        # Remove persistent history file
+        history_file = self._history_dir / f"{job_id}.json"
+        if history_file.exists():
+            try:
+                history_file.unlink()
+            except Exception as e:
+                logger.error(f"Failed to delete job history {history_file}: {e}")
+                return False
+                
+        return True
 
     async def submit(
         self,
@@ -295,14 +327,7 @@ class JobQueue:
                 to_remove.append(job_id)
 
         for job_id in to_remove:
-            del self._jobs[job_id]
-            # Also delete from disk
-            f = self._history_dir / f"{job_id}.json"
-            if f.exists():
-                try:
-                    f.unlink()
-                except Exception as e:
-                    logger.error(f"Failed to delete {f}: {e}")
+            self.delete_job(job_id)
 
         return len(to_remove)
 

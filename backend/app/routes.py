@@ -176,6 +176,25 @@ async def get_analysis_history(
     jobs.sort(key=lambda j: j.get("created_at", ""), reverse=True)
     return JSONResponse(content={"jobs": jobs})
 
+@router.delete(
+    "/analysis/{job_id}",
+    summary="Delete a job",
+    tags=["Analysis"],
+)
+async def delete_job(
+    job_id: str,
+    queue: JobQueue = Depends(get_job_queue),
+):
+    """
+    Delete a job from history and remove all associated output files.
+    """
+    success = queue.delete_job(job_id)
+    if not success:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to completely delete job {job_id}",
+        )
+    return JSONResponse(content={"message": f"Job {job_id} deleted successfully."})
 
 # =============================================================================
 # Job Status
@@ -438,9 +457,43 @@ async def get_settings():
     config = ProjectConfig()
 
     return JSONResponse(content={
-        "project": config.project,
-        "study_area": config.study_area,
-        "coordinate_system": config.coordinate_system,
-        "sentinel": config.sentinel,
-        "preprocessing": config.preprocessing,
+        "version": config.VERSION,
+        "cdse_client_id": config.CDSE_CLIENT_ID,
+        "model_architecture": "deeplabv3plus",
+        "device": "cuda",
     })
+
+from pydantic import BaseModel
+
+class CredentialsUpdate(BaseModel):
+    cdse_email: str
+    cdse_password: str
+
+@router.post(
+    "/settings/credentials",
+    summary="Update credentials",
+    tags=["System"],
+)
+async def update_credentials(creds: CredentialsUpdate):
+    """
+    Update the CDSE_USERNAME and CDSE_PASSWORD in the local .env file.
+    """
+    import dotenv
+    import shutil
+    from src.utils.paths import paths
+
+    env_path = paths.PROJECT_ROOT / ".env"
+    env_example_path = paths.PROJECT_ROOT / ".env.example"
+    
+    # Copy .env.example if .env doesn't exist
+    if not env_path.exists():
+        if env_example_path.exists():
+            shutil.copy(str(env_example_path), str(env_path))
+        else:
+            env_path.touch()
+
+    # Update the token
+    dotenv.set_key(str(env_path), "CDSE_USERNAME", creds.cdse_email)
+    dotenv.set_key(str(env_path), "CDSE_PASSWORD", creds.cdse_password)
+
+    return JSONResponse(content={"message": "Credentials updated successfully."})

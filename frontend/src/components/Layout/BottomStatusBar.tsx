@@ -57,24 +57,12 @@ export function BottomStatusBar({ status, message, error, zoom }: BottomStatusBa
   }
 
   return (
-    <footer className="app-statusbar" role="status" aria-label="Application status bar">
-      {/* CRS */}
-      <div className="statusbar-item">
-        <span>CRS: EPSG:4326</span>
-      </div>
-      <div className="statusbar-divider" />
-
-      {/* Region */}
-      <div className="statusbar-item">
-        <span>Region: Hyderabad Metropolitan Region</span>
-      </div>
-      <div className="statusbar-divider" />
-
+    <footer className="app-statusbar" role="status" aria-label="Application status bar" style={{ justifyContent: "center" }}>
       {/* Coordinates */}
       <div className="statusbar-item">
         {coords ? (
           <span>
-            {coords.lat.toFixed(5)}°N, {coords.lng.toFixed(5)}°E
+            {coords.lat.toFixed(4)}°N, {coords.lng.toFixed(4)}°E
           </span>
         ) : (
           <span style={{ opacity: 0.5 }}>—°N, —°E</span>
@@ -90,21 +78,6 @@ export function BottomStatusBar({ status, message, error, zoom }: BottomStatusBa
           </div>
         </>
       )}
-
-      {/* Spacer */}
-      <div style={{ flex: 1 }} />
-
-      {/* Data source */}
-      <div className="statusbar-item">
-        <span>Sentinel-2 L2A · CDSE</span>
-      </div>
-      <div className="statusbar-divider" />
-
-      {/* Job Status */}
-      <div className="statusbar-item">
-        <div className={`statusbar-status-dot ${dotClass}`} />
-        <span>{statusText}</span>
-      </div>
     </footer>
   );
 }

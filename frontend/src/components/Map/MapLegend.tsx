@@ -10,6 +10,7 @@ import type { Layer } from "@/hooks/useMap";
 
 interface MapLegendProps {
   layers: Layer[];
+  blinkMode?: boolean;
 }
 
 const LAND_COVER_CLASSES = [
@@ -21,20 +22,23 @@ const LAND_COVER_CLASSES = [
   { label: "Agriculture", color: "#FFD700" },
 ];
 
-export function MapLegend({ layers }: MapLegendProps) {
+export function MapLegend({ layers, blinkMode }: MapLegendProps) {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
   const visibleAnalysis = layers.filter(
     (l) => l.type === "analysis" && l.visible && !dismissed.has(l.id)
   );
 
-  if (visibleAnalysis.length === 0) return null;
-
-  const showClassification = visibleAnalysis.some(
+  // If blinkMode is active, always show the classification legend (unless dismissed)
+  const showClassification = blinkMode || visibleAnalysis.some(
     (l) => l.id === "segmentation_t1" || l.id === "segmentation_t2"
   );
+  
   const showNDVI = visibleAnalysis.some((l) => l.id === "ndvi_change");
   const showNDBI = visibleAnalysis.some((l) => l.id === "ndbi_change");
+
+  // Only hide entirely if nothing is to be shown
+  if (!showClassification && !showNDVI && !showNDBI) return null;
 
   const handleDismiss = () => {
     setDismissed(new Set(visibleAnalysis.map((l) => l.id)));

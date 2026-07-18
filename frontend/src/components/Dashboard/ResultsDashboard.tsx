@@ -41,32 +41,34 @@ export function ResultsDashboard({ result }: ResultsDashboardProps) {
   return (
     <div>
       {/* Sub-tabs */}
-      <div className="tabs" style={{ position: "sticky", top: 0, zIndex: 10 }}>
-        {tabs.map(({ id, label, count }) => (
-          <button
-            key={id}
-            id={`dashboard-tab-${id}`}
-            className={`tab${activeTab === id ? " active" : ""}`}
-            onClick={() => setActiveTab(id)}
-          >
-            {label}
-            {count != null && count > 0 && (
-              <span
-                style={{
-                  marginLeft: 4,
-                  padding: "0px 5px",
-                  borderRadius: 8,
-                  background: activeTab === id ? "var(--color-primary)" : "var(--color-border)",
-                  color: activeTab === id ? "white" : "var(--color-text-muted)",
-                  fontSize: 9,
-                  fontWeight: 700,
-                }}
-              >
-                {count}
-              </span>
-            )}
-          </button>
-        ))}
+      <div style={{ position: "sticky", top: 0, zIndex: 10, background: "var(--color-surface)", padding: "12px 16px", borderBottom: "1px solid var(--color-border)" }}>
+        <div className="tabs" style={{ margin: 0 }}>
+          {tabs.map(({ id, label, count }) => (
+            <button
+              key={id}
+              id={`dashboard-tab-${id}`}
+              className={`tab${activeTab === id ? " active" : ""}`}
+              onClick={() => setActiveTab(id)}
+            >
+              {label}
+              {count != null && count > 0 && (
+                <span
+                  style={{
+                    marginLeft: 6,
+                    padding: "2px 6px",
+                    borderRadius: 12,
+                    background: activeTab === id ? "var(--color-primary)" : "var(--color-border)",
+                    color: activeTab === id ? "#000" : "var(--color-text-muted)",
+                    fontSize: 10,
+                    fontWeight: 700,
+                  }}
+                >
+                  {count}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Tab content */}
@@ -89,12 +91,20 @@ export function ResultsDashboard({ result }: ResultsDashboardProps) {
                 </div>
                 <div className="metric-label">ΔNDVI (Mean)</div>
               </div>
-              <div className="metric-card">
-                <div className={`metric-value ${ndbi?.urban_increase_pct != null && ndbi.urban_increase_pct > 5 ? "negative" : "positive"}`} style={{ fontSize: 18 }}>
-                  {ndbi?.urban_increase_pct != null ? `+${ndbi.urban_increase_pct.toFixed(1)}%` : "—"}
-                </div>
-                <div className="metric-label">Urban Increase</div>
-              </div>
+              
+              {(() => {
+                const urbanRow = result.area_change?.rows?.find((r: any) => r.class_name === "Urban");
+                const urbanIncrease = urbanRow ? urbanRow.change_pct : null;
+                return (
+                  <div className="metric-card">
+                    <div className={`metric-value ${urbanIncrease != null && urbanIncrease > 5 ? "negative" : "positive"}`} style={{ fontSize: 18 }}>
+                      {urbanIncrease != null ? `${urbanIncrease > 0 ? '+' : ''}${urbanIncrease.toFixed(1)}%` : "—"}
+                    </div>
+                    <div className="metric-label">Urban Expansion</div>
+                  </div>
+                );
+              })()}
+
               <div className="metric-card">
                 <div className={`metric-value ${seg?.vegetation_loss_pixels != null && seg.vegetation_loss_pixels > 0 ? "negative" : "positive"}`} style={{ fontSize: 18 }}>
                   {seg?.changed_pct != null ? `${seg.changed_pct.toFixed(1)}%` : "—"}
@@ -160,6 +170,14 @@ export function ResultsDashboard({ result }: ResultsDashboardProps) {
                     <tbody>
                       {result.area_change.rows.map((row) => {
                         const cls = LAND_COVER_CLASSES[row.class_id];
+                        const isPositiveBad = row.class_name === "Urban" || row.class_name === "Barren";
+                        let colorStr: string | undefined = undefined;
+                        if (row.change_km2 > 0) {
+                          colorStr = isPositiveBad ? "var(--color-error)" : "var(--color-success)";
+                        } else if (row.change_km2 < 0) {
+                          colorStr = isPositiveBad ? "var(--color-success)" : "var(--color-error)";
+                        }
+
                         return (
                           <tr key={row.class_id}>
                             <td style={{ fontFamily: "var(--font-sans)" }}>
@@ -170,11 +188,11 @@ export function ResultsDashboard({ result }: ResultsDashboardProps) {
                             </td>
                             <td>{row.t1_area_km2.toFixed(2)}</td>
                             <td>{row.t2_area_km2.toFixed(2)}</td>
-                            <td style={{ color: row.change_km2 < 0 ? "var(--color-error)" : row.change_km2 > 0 ? "var(--color-success)" : undefined }}>
+                            <td style={{ color: colorStr }}>
                               {row.change_km2 > 0 ? "+" : ""}{row.change_km2.toFixed(2)}
                             </td>
-                            <td style={{ color: row.change_pct < 0 ? "var(--color-error)" : row.change_pct > 0 ? "var(--color-success)" : undefined }}>
-                              {row.change_pct > 0 ? "+" : ""}{row.change_pct.toFixed(1)}%
+                            <td style={{ color: colorStr }}>
+                              {row.change_pct > 0 ? "+" : ""}{row.change_pct.toFixed(2)}%
                             </td>
                           </tr>
                         );

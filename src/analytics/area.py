@@ -184,19 +184,19 @@ class AreaCalculator:
         change_km2 = {}
         change_pct = {}
 
+        total_area_km2 = pixel_count_to_km2(
+            mask_t1.size, self.pixel_resolution_m
+        )
+
         for class_id in range(NUM_CLASSES):
             t1_km2 = t1_map.get(class_id, ClassArea(class_id, "", 0, 0.0, 0.0)).area_km2
             t2_km2 = t2_map.get(class_id, ClassArea(class_id, "", 0, 0.0, 0.0)).area_km2
 
             delta_km2 = t2_km2 - t1_km2
-            delta_pct = (delta_km2 / t1_km2 * 100) if t1_km2 > 0 else 0.0
+            delta_pct = (delta_km2 / total_area_km2 * 100) if total_area_km2 > 0 else 0.0
 
             change_km2[class_id] = delta_km2
             change_pct[class_id] = delta_pct
-
-        total_area_km2 = pixel_count_to_km2(
-            mask_t1.size, self.pixel_resolution_m
-        )
 
         logger.info(
             f"Area change computed: "

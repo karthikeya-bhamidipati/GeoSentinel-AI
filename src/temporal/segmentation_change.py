@@ -49,6 +49,8 @@ class Hotspot:
     center_col: int
     area_pixels: int
     dominant_transition: tuple[int, int]
+    center_lat: float | None = None
+    center_lon: float | None = None
 
     def to_dict(self) -> dict:
 
@@ -57,6 +59,8 @@ class Hotspot:
         return {
             "center_row": self.center_row,
             "center_col": self.center_col,
+            "center_lat": self.center_lat,
+            "center_lon": self.center_lon,
             "area_pixels": self.area_pixels,
             "from_class": LAND_COVER_NAMES.get(from_cls, str(from_cls)),
             "to_class": LAND_COVER_NAMES.get(to_cls, str(to_cls)),
@@ -151,6 +155,7 @@ class SegmentationChangeAnalyzer:
         mask_t1: np.ndarray,
         mask_t2: np.ndarray,
         ml_change_mask: np.ndarray | None = None,
+        bbox: list[float] | tuple[float, float, float, float] | None = None,
     ) -> SegmentationChangeResult:
         """
         Analyze segmentation change between two masks.
@@ -161,6 +166,9 @@ class SegmentationChangeAnalyzer:
             T1 classification mask (H, W), int32.
         mask_t2 : np.ndarray
             T2 classification mask (H, W), int32.
+        ml_change_mask: np.ndarray | None
+        bbox: list[float] | tuple | None
+            [west, south, east, north] in EPSG:4326
 
         Returns
         -------
@@ -183,10 +191,14 @@ class SegmentationChangeAnalyzer:
             # ----------------------------------------------------------
 
             if ml_change_mask is not None:
-                # Use the advanced neural network change mask
-                change_mask = ml_change_mask > 0
-                # Overwrite mask_t2 where no physical change occurred, suppressing false positives
-                mask_t2 = np.where(~change_mask, mask_t1, mask_t2)
+                # The Siamese U-Net provides a structural change mask (0 or 1).
+                # A pixel is "changed" only if the U-Net says it changed AND
+                # the DeepLab classification class actually changed.
+                # IMPORTANT: Do NOT overwrite mask_t2 — we need the original
+                # classification to compute accurate area statistics.
+                change_mask_nn = ml_change_mask > 0
+                class_changed = mask_t1 != mask_t2
+                change_mask = change_mask_nn & class_changed
             else:
                 change_mask = mask_t1 != mask_t2
             
@@ -215,11 +227,11 @@ class SegmentationChangeAnalyzer:
                     )
 
             # ----------------------------------------------------------
-            # Urban expansion (→ Urban)
+            # Urban expansion (other → Urban)
             # ----------------------------------------------------------
 
             urban_expansion_pixels = int(
-                (change_mask & (mask_t2 == LandCoverClass.URBAN)).sum()
+                (change_mask & (mask_t1 != LandCoverClass.URBAN) & (mask_t2 == LandCoverClass.URBAN)).sum()
             )
 
             # ----------------------------------------------------------
@@ -227,21 +239,23 @@ class SegmentationChangeAnalyzer:
             # ----------------------------------------------------------
 
             vegetation_loss_pixels = int(
-                (change_mask & (mask_t1 == LandCoverClass.VEGETATION)).sum()
+                (change_mask & (mask_t1 == LandCoverClass.VEGETATION) & (mask_t2 != LandCoverClass.VEGETATION)).sum()
             )
 
             # ----------------------------------------------------------
             # Water loss (Water → other)
             # ----------------------------------------------------------
 
-            water_loss_pixels = 0
+            water_loss_pixels = int(
+                (change_mask & (mask_t1 == LandCoverClass.WATER) & (mask_t2 != LandCoverClass.WATER)).sum()
+            )
 
             # ----------------------------------------------------------
             # Hotspot detection
             # ----------------------------------------------------------
 
             hotspots = self._detect_hotspots(
-                change_mask, mask_t1, mask_t2
+                change_mask, mask_t1, mask_t2, bbox=bbox
             )
 
         except TemporalAnalysisError:
@@ -276,17 +290,20 @@ class SegmentationChangeAnalyzer:
         change_mask: np.ndarray,
         mask_t1: np.ndarray,
         mask_t2: np.ndarray,
+        bbox: list[float] | tuple[float, float, float, float] | None = None,
     ) -> list[Hotspot]:
         """
         Detect spatial clusters of change.
 
         Uses connected component labeling to find clusters,
-        then filters by minimum size.
+        then filters by minimum size. If bbox is provided,
+        calculates the geographical coordinates of the cluster center.
         """
 
         labeled, n_components = ndimage.label(change_mask)
 
         hotspots = []
+        H, W = change_mask.shape
 
         for label_id in range(1, n_components + 1):
 
@@ -299,6 +316,13 @@ class SegmentationChangeAnalyzer:
             rows, cols = np.where(component)
             center_row = int(rows.mean())
             center_col = int(cols.mean())
+
+            lat, lon = None, None
+            if bbox is not None:
+                west, south, east, north = bbox
+                # Interpolate based on the assumption that pixel (0,0) is top-left
+                lon = west + (center_col / W) * (east - west)
+                lat = north - (center_row / H) * (north - south)
 
             # Find dominant T1→T2 transition in this hotspot
             t1_values = mask_t1[component]
@@ -314,6 +338,8 @@ class SegmentationChangeAnalyzer:
             hotspots.append(Hotspot(
                 center_row=center_row,
                 center_col=center_col,
+                center_lat=lat,
+                center_lon=lon,
                 area_pixels=area,
                 dominant_transition=dominant,
             ))

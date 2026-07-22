@@ -25,23 +25,30 @@ class GeoSentinelSiameseUNet(nn.Module):
         self, 
         deeplab_ckpt_path: str,
         num_classes: int = 2,
+        ablation_mode: bool = False,
     ):
         super().__init__()
+        self.ablation_mode = ablation_mode
         
-        # 1. Load frozen DeepLabV3+
-        print(f"Loading frozen DeepLabV3+ from {deeplab_ckpt_path}")
+        # 1. Load DeepLabV3+ Encoder
         self.deeplab = GeoSentinelDeepLabV3Plus(in_channels=12, num_classes=5, encoder_name="resnet50")
-        checkpoint = torch.load(deeplab_ckpt_path, map_location="cpu", weights_only=True)
-        state_dict = checkpoint.get("model_state_dict", checkpoint.get("state_dict", checkpoint))
         
-        # Fix model prefix if necessary
-        new_sd = {}
-        for k, v in state_dict.items():
-            if not k.startswith("model."):
-                new_sd[f"model.{k}"] = v
-            else:
-                new_sd[k] = v
-        self.deeplab.load_state_dict(new_sd, strict=False)
+        if not self.ablation_mode:
+            print(f"Loading frozen Semantic DeepLabV3+ from {deeplab_ckpt_path}")
+            checkpoint = torch.load(deeplab_ckpt_path, map_location="cpu", weights_only=True)
+            state_dict = checkpoint.get("model_state_dict", checkpoint.get("state_dict", checkpoint))
+            
+            # Fix model prefix if necessary
+            new_sd = {}
+            for k, v in state_dict.items():
+                if not k.startswith("model."):
+                    new_sd[f"model.{k}"] = v
+                else:
+                    new_sd[k] = v
+            self.deeplab.load_state_dict(new_sd, strict=False)
+        else:
+            print(f"ABLATION MODE: Ignoring semantic weights. Using raw ImageNet ResNet50.")
+            # Note: SMP automatically downloads ImageNet weights on initialization if specified.
         
         # We allow DeepLab to be fine-tuned (protected), but we MUST keep it in eval mode 
         # so BatchNorm uses running stats and doesn't crash on batch_size=1
@@ -70,9 +77,9 @@ class GeoSentinelSiameseUNet(nn.Module):
             ChannelReducer(2560, 512)
         ])
         
-        from src.models.attention import CrossAttentionFusion
+        from src.models.attention import EfficientLinearAttentionBlock
         
-        # Cross-Attention modules for each scale
+        # Transformer-based Cross-Attention modules for each scale
         # Scale 0 (Input): 12 channels
         # Scale 1: 64 channels
         # Scale 2: 64 channels
@@ -80,12 +87,12 @@ class GeoSentinelSiameseUNet(nn.Module):
         # Scale 4: 256 channels
         # Scale 5: 512 channels
         self.cross_attentions = nn.ModuleList([
-            CrossAttentionFusion(12),
-            CrossAttentionFusion(64),
-            CrossAttentionFusion(64),
-            CrossAttentionFusion(128),
-            CrossAttentionFusion(256),
-            CrossAttentionFusion(512)
+            EfficientLinearAttentionBlock(12),
+            EfficientLinearAttentionBlock(64),
+            EfficientLinearAttentionBlock(64),
+            EfficientLinearAttentionBlock(128),
+            EfficientLinearAttentionBlock(256),
+            EfficientLinearAttentionBlock(512)
         ])
         
         # We also need to process the 5-class DeepLab logits into the bottleneck

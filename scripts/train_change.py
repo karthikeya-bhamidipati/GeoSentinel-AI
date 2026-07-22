@@ -102,6 +102,34 @@ class OSCD12ChannelDataset(Dataset):
             t2 = F.hflip(t2)
             mask = F.hflip(mask)
             
+        if random.random() > 0.5:
+            t1 = F.vflip(t1)
+            t2 = F.vflip(t2)
+            mask = F.vflip(mask)
+            
+        # Random Rotation (0, 90, 180, 270)
+        rot_angle = random.choice([0, 90, 180, 270])
+        if rot_angle > 0:
+            t1 = F.rotate(t1, rot_angle)
+            t2 = F.rotate(t2, rot_angle)
+            # mask has shape [H, W], rotate expects [1, H, W] or [C, H, W]
+            mask = F.rotate(mask.unsqueeze(0), rot_angle).squeeze(0)
+            
+        # Random Brightness/Contrast Jitter on optical bands (first 6 bands)
+        if random.random() > 0.5:
+            # We apply color jitter individually per image to simulate different lighting conditions
+            brightness_factor = random.uniform(0.8, 1.2)
+            contrast_factor = random.uniform(0.8, 1.2)
+            
+            t1[:6] = F.adjust_brightness(t1[:6], brightness_factor)
+            t1[:6] = F.adjust_contrast(t1[:6], contrast_factor)
+            
+            brightness_factor2 = random.uniform(0.8, 1.2)
+            contrast_factor2 = random.uniform(0.8, 1.2)
+            
+            t2[:6] = F.adjust_brightness(t2[:6], brightness_factor2)
+            t2[:6] = F.adjust_contrast(t2[:6], contrast_factor2)
+            
         return {
             "t1": t1, # [12, H, W]
             "t2": t2, # [12, H, W]
@@ -130,9 +158,9 @@ from src.models.losses import FocalTverskyLoss
 import argparse
 
 class SiameseLightningModule(L.LightningModule):
-    def __init__(self, deeplab_ckpt_path, lr=1e-4):
+    def __init__(self, deeplab_ckpt_path, lr=1e-4, ablation_mode=False):
         super().__init__()
-        self.model = GeoSentinelSiameseUNet(deeplab_ckpt_path, num_classes=2)
+        self.model = GeoSentinelSiameseUNet(deeplab_ckpt_path, num_classes=2, ablation_mode=ablation_mode)
         self.loss_fn = FocalTverskyLoss(class_weights=[0.15, 0.85])
         self.lr = lr
         
@@ -191,6 +219,7 @@ def main():
     parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--num-workers", type=int, default=4)
+    parser.add_argument("--ablation", action="store_true", help="Run in ablation mode (ImageNet ResNet50 baseline)")
     args = parser.parse_args()
 
     L.seed_everything(42, workers=True)
@@ -199,10 +228,10 @@ def main():
     
     checkpoint_dir = PROJECT_ROOT / "data" / "weights"
     deeplab_ckpt = checkpoint_dir / "deeplabv3plus_best.pt"
-    if not deeplab_ckpt.exists():
+    if not deeplab_ckpt.exists() and not args.ablation:
         raise FileNotFoundError("DeepLabV3+ weights not found. Train it first!")
         
-    task = SiameseLightningModule(str(deeplab_ckpt))
+    task = SiameseLightningModule(str(deeplab_ckpt), ablation_mode=args.ablation)
     
     class OrchestratorCheckpointCallback(L.Callback):
         def __init__(self, save_path: Path):
@@ -217,12 +246,14 @@ def main():
                 torch.save({"model_state_dict": model_state}, self.save_path)
                 print(f"  [BEST] Saved orchestrator checkpoint: {self.save_path}")
 
-    orch_save_path = checkpoint_dir / "change_unet_best.pt"
+    # Determine checkpoint filenames based on ablation mode
+    ckpt_filename = "change_unet_baseline_best" if args.ablation else "change_unet_best"
+    orch_save_path = checkpoint_dir / f"{ckpt_filename}.pt"
     
     callbacks = [
         ModelCheckpoint(
             dirpath=str(checkpoint_dir),
-            filename="change_unet_best",
+            filename=ckpt_filename,
             monitor="val_loss",
             mode="min",
             save_top_k=1,

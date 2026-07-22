@@ -93,3 +93,76 @@ class CrossAttentionFusion(nn.Module):
         
         fused = torch.cat([cross_feat, abs_diff], dim=1)
         return self.fusion_conv(fused)
+
+class EfficientLinearAttentionBlock(nn.Module):
+    """
+    SOTA 2024-style Efficient Linear Attention Fusion.
+    Uses O(N) complexity linear attention to mathematically model long-range 
+    spatial dependencies without the O(N^2) memory crash of standard Transformers.
+    """
+    def __init__(self, in_channels: int):
+        super().__init__()
+        self.in_channels = in_channels
+        self.embed_dim = in_channels
+        
+        # Q, K, V projections
+        self.q_proj = nn.Conv2d(in_channels, in_channels, 1, bias=False)
+        self.k_proj = nn.Conv2d(in_channels, in_channels, 1, bias=False)
+        self.v_proj = nn.Conv2d(in_channels, in_channels, 1, bias=False)
+        
+        self.norm1 = nn.LayerNorm(self.embed_dim)
+        self.norm2 = nn.LayerNorm(self.embed_dim)
+        
+        self.mlp = nn.Sequential(
+            nn.Linear(self.embed_dim, self.embed_dim * 2),
+            nn.GELU(),
+            nn.Linear(self.embed_dim * 2, self.embed_dim)
+        )
+        
+        # Final fusion combines transformer output with explicit absolute difference
+        self.fusion_conv = nn.Sequential(
+            nn.Conv2d(in_channels * 2, in_channels, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(in_channels),
+            nn.ReLU(inplace=True)
+        )
+        
+    def forward(self, feat1: torch.Tensor, feat2: torch.Tensor) -> torch.Tensor:
+        b, c, h, w = feat1.size()
+        hw = h * w
+        
+        # Project
+        q = self.q_proj(feat1).view(b, c, hw).permute(0, 2, 1) # B, HW, C
+        k = self.k_proj(feat2).view(b, c, hw).permute(0, 2, 1) # B, HW, C
+        v = self.v_proj(feat2).view(b, c, hw).permute(0, 2, 1) # B, HW, C
+        
+        # Linear Attention Kernel: phi(x) = elu(x) + 1
+        q = F.elu(q) + 1.0
+        k = F.elu(k) + 1.0
+        
+        # O(N) Linear Attention: Q @ (K^T @ V)
+        # K^T @ V -> B, C, C
+        kv = torch.bmm(k.permute(0, 2, 1), v) 
+        
+        # Q @ KV -> B, HW, C
+        attn_out = torch.bmm(q, kv)
+        
+        # Normalize by denominator
+        denom = torch.bmm(q, k.sum(dim=1).unsqueeze(-1)) # B, HW, 1
+        attn_out = attn_out / (denom + 1e-6)
+        
+        # Add & Norm
+        seq1 = feat1.view(b, c, hw).permute(0, 2, 1)
+        out = self.norm1(seq1 + attn_out)
+        
+        # FFN
+        mlp_out = self.mlp(out)
+        out = self.norm2(out + mlp_out)
+        
+        # Reshape back to image: [B, HW, C] -> [B, C, H, W]
+        cross_feat = out.permute(0, 2, 1).contiguous().view(b, c, h, w)
+        
+        # Combine with absolute difference
+        abs_diff = torch.abs(feat1 - feat2)
+        fused = torch.cat([cross_feat, abs_diff], dim=1)
+        
+        return self.fusion_conv(fused)

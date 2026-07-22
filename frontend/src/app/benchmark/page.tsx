@@ -71,7 +71,6 @@ const LAND_COVER_IOU = [
   { class: "Vegetation", unet: 0.892, deeplab: 0.822, color: "#228B22" },
   { class: "Water", unet: 0.941, deeplab: 0.881, color: "#1E90FF" },
   { class: "Barren", unet: 0.798, deeplab: 0.641, color: "#D2B48C" },
-  { class: "Agriculture", unet: 0.832, deeplab: 0.698, color: "#FFD700" },
   { class: "Background", unet: 0.981, deeplab: 0.949, color: "#808080" },
 ];
 

@@ -168,8 +168,7 @@ export const LAND_COVER_CLASSES: Record<
   1: { name: "Urban",      color: "#f87171" },
   2: { name: "Vegetation", color: "#34d399" },
   3: { name: "Water",      color: "#38bdf8" },
-  4: { name: "Barren",     color: "#d4a574" },
-  5: { name: "Agriculture", color: "#fbbf24" },
+  4: { name: "Barren",     color: "#d97706" }
 };
 
 // --------------------------------------------------------------------------

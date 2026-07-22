@@ -215,6 +215,10 @@ class CloudMasker:
                 raster._array = self.apply_mask(
                     raster.array, cloud_mask
                 )
+                
+                # CRITICAL FIX: Update profile so downstream steps know how to handle NaNs
+                raster.profile["dtype"] = "float32"
+                raster.profile["nodata"] = self.nodata_value
 
         except Exception as exc:
             raise PreprocessingError(

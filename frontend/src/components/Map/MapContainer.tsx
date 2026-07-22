@@ -381,17 +381,30 @@ export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
 
   const handleDrawRect = () => {
     if (mapRef.current) {
-      drawState.current.active = true;
-      drawState.current.startPoint = null;
-      drawState.current.currentPoint = null;
-      setIsDrawingUI(true);
-      onDrawingModeChange(true);
-      mapRef.current.getCanvas().style.cursor = 'crosshair';
+      const isCurrentlyDrawing = drawState.current.active;
       
-      // Clear current source
-      const source = mapRef.current.getSource('custom-aoi-draw') as maplibregl.GeoJSONSource;
-      if (source) source.setData({ type: 'FeatureCollection', features: [] });
-      onAOIDrawn(null);
+      if (isCurrentlyDrawing) {
+        // Cancel drawing mode
+        drawState.current.active = false;
+        drawState.current.startPoint = null;
+        drawState.current.currentPoint = null;
+        setIsDrawingUI(false);
+        onDrawingModeChange(false);
+        mapRef.current.getCanvas().style.cursor = '';
+      } else {
+        // Start drawing mode
+        drawState.current.active = true;
+        drawState.current.startPoint = null;
+        drawState.current.currentPoint = null;
+        setIsDrawingUI(true);
+        onDrawingModeChange(true);
+        mapRef.current.getCanvas().style.cursor = 'crosshair';
+        
+        // Clear current source
+        const source = mapRef.current.getSource('custom-aoi-draw') as maplibregl.GeoJSONSource;
+        if (source) source.setData({ type: 'FeatureCollection', features: [] });
+        onAOIDrawn(null);
+      }
     }
   };
 

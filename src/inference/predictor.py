@@ -192,9 +192,6 @@ class ScenePredictor:
         # Crop output back to original scene size (remove padding)
         prediction = merger.get_prediction()[:H, :W]
         probabilities = merger.get_probabilities()[:, :H, :W]
-        
-        # Merge Agriculture (5) into Vegetation (2) as they are visually similar
-        prediction[prediction == 5] = 2
 
         confidence = probabilities.max(axis=0)
         mean_confidence = float(confidence.mean())

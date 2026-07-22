@@ -254,3 +254,111 @@ class FocalLoss(nn.Module):
             focal = self.alpha * focal
 
         return focal.mean()
+
+
+# =============================================================================
+# Focal Tversky Loss
+# =============================================================================
+
+
+class FocalTverskyLoss(nn.Module):
+    """
+    Focal Tversky Loss for extreme class imbalance.
+    Combines Tversky Index with Focal Loss.
+    """
+    def __init__(self, alpha=0.3, beta=0.7, gamma=4.0 / 3.0, smooth=1e-6, ignore_index=None, class_weights=None):
+        super().__init__()
+        self.alpha = alpha
+        self.beta = beta
+        self.gamma = gamma
+        self.smooth = smooth
+        self.ignore_index = ignore_index
+        self.class_weights = class_weights
+
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        num_classes = logits.shape[1]
+        probs = F.softmax(logits, dim=1)
+        
+        targets_one_hot = F.one_hot(targets.long(), num_classes=num_classes).permute(0, 3, 1, 2).float()
+        
+        if self.ignore_index is not None:
+            mask = (targets != self.ignore_index).unsqueeze(1).float()
+            probs = probs * mask
+            targets_one_hot = targets_one_hot * mask
+            
+        dims = (0, 2, 3)
+        
+        # True Positives, False Positives, False Negatives
+        TP = (probs * targets_one_hot).sum(dim=dims)
+        FP = (probs * (1 - targets_one_hot)).sum(dim=dims)
+        FN = ((1 - probs) * targets_one_hot).sum(dim=dims)
+        
+        Tversky = (TP + self.smooth) / (TP + self.alpha * FP + self.beta * FN + self.smooth)
+        FocalTversky = (1 - Tversky) ** self.gamma
+        
+        if self.class_weights is not None:
+            weights = torch.tensor(self.class_weights, device=logits.device, dtype=torch.float32)
+            # Ensure weights matches num_classes
+            if len(weights) != num_classes:
+                raise ValueError(f"class_weights length ({len(weights)}) must match num_classes ({num_classes})")
+            return (FocalTversky * weights).sum() / weights.sum()
+        
+        return FocalTversky.mean()
+
+
+# =============================================================================
+# Boundary Loss (Edge-Aware)
+# =============================================================================
+
+class BoundaryLoss(nn.Module):
+    """
+    Edge-aware Boundary Loss using spatial gradients (Sobel filters).
+    Forces the network to produce crisp, sharp cuts that match ground-truth edges.
+    """
+    def __init__(self, ignore_index=None):
+        super().__init__()
+        self.ignore_index = ignore_index
+        self.register_buffer('sobel_x', torch.tensor([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]], dtype=torch.float32).view(1, 1, 3, 3))
+        self.register_buffer('sobel_y', torch.tensor([[-1, -2, -1], [0, 0, 0], [1, 2, 1]], dtype=torch.float32).view(1, 1, 3, 3))
+
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        probs = F.softmax(logits, dim=1)
+        num_classes = probs.shape[1]
+        
+        targets_one_hot = F.one_hot(targets.long(), num_classes=num_classes).permute(0, 3, 1, 2).float()
+        
+        if self.ignore_index is not None:
+            mask = (targets != self.ignore_index).unsqueeze(1).float()
+            probs = probs * mask
+            targets_one_hot = targets_one_hot * mask
+
+        b, c, h, w = probs.shape
+        probs_flat = probs.view(b * c, 1, h, w)
+        targets_flat = targets_one_hot.reshape(b * c, 1, h, w)
+        
+        grad_x_pred = F.conv2d(probs_flat, self.sobel_x, padding=1)
+        grad_y_pred = F.conv2d(probs_flat, self.sobel_y, padding=1)
+        edges_pred = torch.sqrt(grad_x_pred**2 + grad_y_pred**2 + 1e-6)
+        
+        grad_x_target = F.conv2d(targets_flat, self.sobel_x, padding=1)
+        grad_y_target = F.conv2d(targets_flat, self.sobel_y, padding=1)
+        edges_target = torch.sqrt(grad_x_target**2 + grad_y_target**2 + 1e-6)
+        
+        return F.l1_loss(edges_pred, edges_target, reduction='mean')
+
+
+class CombinedFocalBoundaryLoss(nn.Module):
+    """
+    Combines Focal Tversky Loss (for class imbalance and blobs) 
+    with Boundary Loss (for crisp edges and cuts).
+    """
+    def __init__(self, alpha=0.3, beta=0.7, gamma=4.0/3.0, boundary_weight=0.5, ignore_index=None, class_weights=None):
+        super().__init__()
+        self.focal_tversky = FocalTverskyLoss(alpha, beta, gamma, ignore_index=ignore_index, class_weights=class_weights)
+        self.boundary = BoundaryLoss(ignore_index=ignore_index)
+        self.boundary_weight = boundary_weight
+        
+    def forward(self, logits, targets):
+        ft_loss = self.focal_tversky(logits, targets)
+        b_loss = self.boundary(logits, targets)
+        return ft_loss + self.boundary_weight * b_loss

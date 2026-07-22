@@ -39,7 +39,6 @@ NORM = mcolors.BoundaryNorm(boundaries=np.arange(NUM_CLASSES + 1) - 0.5, ncolors
 def compute_metrics(y_true, y_pred, num_classes):
     cm = confusion_matrix(y_true.flatten(), y_pred.flatten(), labels=range(num_classes))
     
-    # Ignore background class (0) for metrics if desired, but we'll include it for now
     intersection = np.diag(cm)
     ground_truth_set = cm.sum(axis=1)
     predicted_set = cm.sum(axis=0)
@@ -51,7 +50,18 @@ def compute_metrics(y_true, y_pred, num_classes):
     precision = intersection / (predicted_set + 1e-10)
     recall = intersection / (ground_truth_set + 1e-10)
     
-    return miou, iou, precision, recall
+    # F1 Score
+    f1 = 2 * (precision * recall) / (precision + recall + 1e-10)
+    
+    # Overall Accuracy
+    total_pixels = cm.sum()
+    oa = intersection.sum() / (total_pixels + 1e-10)
+    
+    # Kappa
+    pe = (ground_truth_set * predicted_set).sum() / (total_pixels * total_pixels + 1e-10)
+    kappa = (oa - pe) / (1 - pe + 1e-10)
+    
+    return miou, iou, precision, recall, f1, oa, kappa
 
 def main():
     parser = argparse.ArgumentParser()
@@ -109,7 +119,7 @@ def main():
         else:
             new_state_dict[k] = v
             
-    model.load_state_dict(new_state_dict)
+    model.load_state_dict(new_state_dict, strict=False)
         
     model = model.to(device)
     model.eval()
@@ -153,16 +163,19 @@ def main():
     all_preds = np.concatenate(all_preds, axis=0)
     all_masks = np.concatenate(all_masks, axis=0)
     
-    miou, iou, precision, recall = compute_metrics(all_masks, all_preds, NUM_CLASSES)
+    miou, iou, precision, recall, f1, oa, kappa = compute_metrics(all_masks, all_preds, NUM_CLASSES)
     
     print("\n" + "="*50)
     print("EVALUATION RESULTS")
     print("="*50)
-    print(f"Mean IoU: {miou:.4f}")
+    print(f"Overall Accuracy (OA): {oa:.4f}")
+    print(f"Kappa Coefficient:     {kappa:.4f}")
+    print(f"Mean IoU:              {miou:.4f}")
     print("-" * 50)
     for class_id, class_name in LAND_COVER_NAMES.items():
         print(f"Class {class_id} ({class_name}):")
         print(f"  IoU:       {iou[class_id]:.4f}")
+        print(f"  F1-Score:  {f1[class_id]:.4f}")
         print(f"  Precision: {precision[class_id]:.4f}")
         print(f"  Recall:    {recall[class_id]:.4f}")
     

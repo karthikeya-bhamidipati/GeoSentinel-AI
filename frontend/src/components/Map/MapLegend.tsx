@@ -19,7 +19,6 @@ const LAND_COVER_CLASSES = [
   { label: "Vegetation", color: "#228B22" },
   { label: "Water", color: "#1E90FF" },
   { label: "Barren", color: "#D2B48C" },
-  { label: "Agriculture", color: "#FFD700" },
 ];
 
 export function MapLegend({ layers, blinkMode }: MapLegendProps) {

@@ -61,7 +61,6 @@ class LandCoverClass(IntEnum):
     VEGETATION = 2
     WATER = 3
     BARREN = 4
-    AGRICULTURE = 5
 
 
 LAND_COVER_NAMES: dict[int, str] = {
@@ -70,7 +69,6 @@ LAND_COVER_NAMES: dict[int, str] = {
     LandCoverClass.VEGETATION: "Vegetation",
     LandCoverClass.WATER: "Water",
     LandCoverClass.BARREN: "Barren",
-    LandCoverClass.AGRICULTURE: "Agriculture",
 }
 
 LAND_COVER_COLORS: dict[int, tuple[int, int, int]] = {
@@ -79,7 +77,6 @@ LAND_COVER_COLORS: dict[int, tuple[int, int, int]] = {
     LandCoverClass.VEGETATION: (34, 139, 34),
     LandCoverClass.WATER: (30, 144, 255),
     LandCoverClass.BARREN: (210, 180, 140),
-    LandCoverClass.AGRICULTURE: (255, 215, 0),
 }
 
 NUM_CLASSES = len(LandCoverClass)

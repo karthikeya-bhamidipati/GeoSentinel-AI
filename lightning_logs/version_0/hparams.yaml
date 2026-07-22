@@ -1,0 +1,16 @@
+model: deeplabv3+
+backbone: resnet50
+in_channels: 12
+task: multiclass
+num_classes: 6
+num_labels: null
+labels: null
+num_filters: 3
+pos_weight: null
+loss: ce
+class_weights: null
+ignore_index: null
+lr: 0.0001
+patience: 10
+freeze_backbone: false
+freeze_decoder: false

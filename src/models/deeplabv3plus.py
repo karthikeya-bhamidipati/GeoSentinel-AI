@@ -57,6 +57,9 @@ class GeoSentinelDeepLabV3Plus(nn.Module):
         self.num_classes = num_classes
         self.encoder_name = encoder_name
 
+        from src.models.attention import SpectralAttentionGate
+        self.scag = SpectralAttentionGate(in_channels=in_channels, reduction_ratio=4)
+
         self.model = smp.DeepLabV3Plus(
             encoder_name=encoder_name,
             encoder_weights=encoder_weights,
@@ -65,7 +68,34 @@ class GeoSentinelDeepLabV3Plus(nn.Module):
             activation=None,
         )
 
+        # Smart multi-spectral initialization (if imagenet weights were loaded)
+        if encoder_weights == "imagenet" and in_channels != 3:
+            self._initialize_multispectral_weights()
+
+    def _initialize_multispectral_weights(self):
+        """
+        Carefully initializes the first convolution layer to handle 12 channels
+        by replicating the mean of the pre-trained 3-channel RGB weights.
+        This preserves edge-detection gradients better than random initialization.
+        """
+        # Find the first convolution layer (usually in the encoder)
+        for name, module in self.model.encoder.named_modules():
+            if isinstance(module, nn.Conv2d):
+                if module.in_channels == self.in_channels:
+                    with torch.no_grad():
+                        # The weights are [out_channels, in_channels, H, W]
+                        weights = module.weight.data
+                        # Assuming SMP initialized the first 3 channels with ImageNet and others randomly
+                        # We take the mean of the first 3 channels (RGB)
+                        rgb_mean = weights[:, :3, :, :].mean(dim=1, keepdim=True)
+                        # Copy the mean to the remaining channels
+                        for i in range(3, self.in_channels):
+                            weights[:, i:i+1, :, :] = rgb_mean
+                    break # Only do this for the very first conv layer
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # Apply Spectral-Channel Attention Gating first
+        x = self.scag(x)
         return self.model(x)
 
     def predict(self, x: torch.Tensor) -> torch.Tensor:

@@ -48,6 +48,9 @@ from torchgeo.trainers import SemanticSegmentationTask
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from src.models.deeplabv3plus import GeoSentinelDeepLabV3Plus
+from src.models.losses import CombinedFocalBoundaryLoss, FocalTverskyLoss
+
 from src.models.unet import NUM_CLASSES, DEFAULT_IN_CHANNELS, LAND_COVER_NAMES
 
 
@@ -92,6 +95,9 @@ class GeoSentinelPatchDataset(NonGeoDataset):
 
         image = np.load(img_path)  # (12, H, W) float32
         mask = np.load(mask_path)  # (H, W) int64
+        
+        # Merge Agriculture (5) into Vegetation (2)
+        mask[mask == 5] = 2
 
         # Geometric augmentation (spectral values are NEVER altered)
         if self.augment:
@@ -245,15 +251,56 @@ def main() -> None:
         num_workers=args.num_workers,
     )
 
-    # ── TorchGeo SemanticSegmentationTask ──────────────────────────────
-    # This wraps the SMP model + loss + metrics into a single Lightning module
-    task = SemanticSegmentationTask(
+    class CustomSemanticSegmentationTask(SemanticSegmentationTask):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            if self.hparams["model"] == "deeplabv3+":
+                self.model = GeoSentinelDeepLabV3Plus(
+                    in_channels=self.hparams["in_channels"],
+                    num_classes=self.hparams["num_classes"],
+                    encoder_name=self.hparams["backbone"],
+                    encoder_weights="imagenet"
+                )
+            if self.hparams["model"] == "deeplabv3+":
+                self.criterion = CombinedFocalBoundaryLoss(class_weights=[0.2, 1.0, 1.5, 2.0, 0.6])
+            else:
+                self.criterion = FocalTverskyLoss(class_weights=[0.2, 1.0, 1.5, 2.0, 0.6])
+
+        def configure_optimizers(self):
+            encoder_params = []
+            decoder_params = []
+            
+            if hasattr(self.model, "model") and hasattr(self.model.model, "encoder"):
+                encoder_params = list(self.model.model.encoder.parameters())
+                # Scag and decoder get higher LR
+                if hasattr(self.model, "scag"):
+                    decoder_params += list(self.model.scag.parameters())
+                decoder_params += list(self.model.model.decoder.parameters()) + list(self.model.model.segmentation_head.parameters())
+            else:
+                encoder_params = list(self.model.parameters())
+                decoder_params = []
+                
+            if decoder_params:
+                optimizer = torch.optim.AdamW([
+                    {"params": encoder_params, "lr": self.hparams["lr"] * 0.1},
+                    {"params": decoder_params, "lr": self.hparams["lr"]}
+                ], weight_decay=1e-4)
+            else:
+                optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.hparams["lr"], weight_decay=1e-4)
+            
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer, mode="min", factor=0.5, patience=self.hparams["patience"]
+            )
+            return {"optimizer": optimizer, "lr_scheduler": {"scheduler": scheduler, "monitor": "val_loss"}}
+
+    # ── Custom TorchGeo SemanticSegmentationTask ──────────────────────────────
+    task = CustomSemanticSegmentationTask(
         model=tg_model_name,
         backbone=args.encoder,
         weights=True,                       # ImageNet pretrained encoder
         in_channels=DEFAULT_IN_CHANNELS,    # 12 channels
         num_classes=NUM_CLASSES,            # 6 classes
-        loss="focal",                       # Focal loss handles class imbalance
+        loss="ce",                          # We override it to FocalTverskyLoss anyway
         lr=args.lr,
         patience=10,                        # LR scheduler patience
     )

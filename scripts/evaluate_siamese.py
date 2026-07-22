@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
-from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
+from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score, cohen_kappa_score
 import matplotlib.colors as mcolors
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -103,6 +103,7 @@ def main():
     precision = precision_score(all_masks, all_preds, zero_division=0)
     recall = recall_score(all_masks, all_preds, zero_division=0)
     f1 = f1_score(all_masks, all_preds, zero_division=0)
+    kappa = cohen_kappa_score(all_masks, all_preds)
     
     print("\n" + "="*50)
     print("EVALUATION RESULTS (CHANGE DETECTION)")
@@ -111,6 +112,7 @@ def main():
     print(f"Precision: {precision:.4f}")
     print(f"Recall:    {recall:.4f}")
     print(f"F1 Score:  {f1:.4f}")
+    print(f"Kappa:     {kappa:.4f}")
     print("="*50)
     
     # Visualizations

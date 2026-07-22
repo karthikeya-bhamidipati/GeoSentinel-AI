@@ -311,27 +311,41 @@ class PreprocessingPipeline:
         SentinelScene
         """
 
+        bands_to_align = []
         for band in AI_BANDS:
-            if not scene.has_band(band) or not reference.has_band(band):
-                continue
-
-            ref_raster = reference.raster(band)
+            if scene.has_band(band) and reference.has_band(band):
+                bands_to_align.append(band)
+                
+        if not bands_to_align:
+            return scene
+            
+        ref_arrays = []
+        tgt_arrays = []
+        
+        for band in bands_to_align:
+            ref_arrays.append(reference.raster(band).array)
+            tgt_arrays.append(scene.raster(band).array)
+            
+        # Stack into multi-band arrays (N, H, W)
+        ref_stacked = np.stack(ref_arrays)
+        tgt_stacked = np.stack(tgt_arrays)
+        
+        # All rasters share the same profile post-resampling
+        ref_profile = reference.raster(bands_to_align[0]).profile
+        tgt_profile = scene.raster(bands_to_align[0]).profile
+        
+        # Align all bands simultaneously
+        aligned_array, aligned_profile = self._aligner.align_arrays(
+            reference_array=ref_stacked,
+            reference_profile=ref_profile,
+            target_array=tgt_stacked,
+            target_profile=tgt_profile,
+        )
+        
+        # Unstack and assign back to individual rasters
+        for i, band in enumerate(bands_to_align):
             tgt_raster = scene.raster(band)
-
-            ref_array = ref_raster.array[np.newaxis, ...]  # (1, H, W)
-            tgt_array = tgt_raster.array[np.newaxis, ...]  # (1, H, W)
-
-            ref_profile = ref_raster.profile
-            tgt_profile = tgt_raster.profile
-
-            aligned_array, aligned_profile = self._aligner.align_arrays(
-                reference_array=ref_array,
-                reference_profile=ref_profile,
-                target_array=tgt_array,
-                target_profile=tgt_profile,
-            )
-
-            tgt_raster._array = aligned_array[0].astype("float32")
+            tgt_raster._array = aligned_array[i].astype("float32")
             tgt_raster.profile = aligned_profile
             tgt_raster.transform = aligned_profile["transform"]
             tgt_raster.crs = aligned_profile["crs"]

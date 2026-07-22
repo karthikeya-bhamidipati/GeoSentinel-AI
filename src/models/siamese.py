@@ -30,7 +30,7 @@ class GeoSentinelSiameseUNet(nn.Module):
         
         # 1. Load frozen DeepLabV3+
         print(f"Loading frozen DeepLabV3+ from {deeplab_ckpt_path}")
-        self.deeplab = GeoSentinelDeepLabV3Plus(in_channels=12, num_classes=6, encoder_name="resnet50")
+        self.deeplab = GeoSentinelDeepLabV3Plus(in_channels=12, num_classes=5, encoder_name="resnet50")
         checkpoint = torch.load(deeplab_ckpt_path, map_location="cpu", weights_only=True)
         state_dict = checkpoint.get("model_state_dict", checkpoint.get("state_dict", checkpoint))
         
@@ -41,11 +41,12 @@ class GeoSentinelSiameseUNet(nn.Module):
                 new_sd[f"model.{k}"] = v
             else:
                 new_sd[k] = v
-        self.deeplab.load_state_dict(new_sd)
+        self.deeplab.load_state_dict(new_sd, strict=False)
         
-        # Freeze DeepLab
+        # We allow DeepLab to be fine-tuned (protected), but we MUST keep it in eval mode 
+        # so BatchNorm uses running stats and doesn't crash on batch_size=1
         for param in self.deeplab.parameters():
-            param.requires_grad = False
+            param.requires_grad = True
         self.deeplab.eval()
         
         # 2. Trainable U-Net Encoder and Decoder
@@ -69,40 +70,61 @@ class GeoSentinelSiameseUNet(nn.Module):
             ChannelReducer(2560, 512)
         ])
         
-        # We also need to process the 6-class DeepLab logits into the bottleneck
+        from src.models.attention import CrossAttentionFusion
+        
+        # Cross-Attention modules for each scale
+        # Scale 0 (Input): 12 channels
+        # Scale 1: 64 channels
+        # Scale 2: 64 channels
+        # Scale 3: 128 channels
+        # Scale 4: 256 channels
+        # Scale 5: 512 channels
+        self.cross_attentions = nn.ModuleList([
+            CrossAttentionFusion(12),
+            CrossAttentionFusion(64),
+            CrossAttentionFusion(64),
+            CrossAttentionFusion(128),
+            CrossAttentionFusion(256),
+            CrossAttentionFusion(512)
+        ])
+        
+        # We also need to process the 5-class DeepLab logits into the bottleneck
         self.bottleneck_fusion = nn.Sequential(
-            nn.Conv2d(512 + 6, 512, kernel_size=3, padding=1, bias=False),
+            nn.Conv2d(512 + 5, 512, kernel_size=3, padding=1, bias=False),
             nn.BatchNorm2d(512),
             nn.ReLU(inplace=True)
         )
         
+    def train(self, mode=True):
+        super().train(mode)
+        # DeepLab must always remain in eval mode so BatchNorm doesn't crash on batch_size=1
+        self.deeplab.eval()
+        return self
+
     def extract_deeplab(self, x):
         """Extract features and logits from DeepLab."""
-        with torch.no_grad():
-            features = self.deeplab.model.encoder(x)
-            logits = self.deeplab(x)
+        # Now that DeepLab is not frozen, we don't force torch.no_grad()
+        features = self.deeplab.model.encoder(x)
+        logits = self.deeplab(x)
         return features, logits
 
     def forward(self, t1, t2):
-        # 1. Extract DeepLab features (Frozen)
+        # 1. Extract DeepLab features
         d_feat1, logits1 = self.extract_deeplab(t1)
         d_feat2, logits2 = self.extract_deeplab(t2)
         
-        # 3. Extract U-Net features (Trainable)
+        # 3. Extract U-Net features
         u_feat1 = self.unet.encoder(t1)
         u_feat2 = self.unet.encoder(t2)
         
-        # 4. Feature Fusion (Absolute Difference)
+        # 4. Feature Fusion with Cross-Attention
         fused_features = []
-        # Feature 0 is usually the raw input (or downsampled input), but SMP encoders return it.
-        # u_feat1[0] is shape [B, 12, H, W], d_feat1[0] is [B, 12, H, W]
-        # We just use the absolute difference of the input
-        fused_features.append(torch.abs(u_feat1[0] - u_feat2[0]))
+        
+        # Scale 0 (Input)
+        fused_features.append(self.cross_attentions[0](u_feat1[0], u_feat2[0]))
         
         # For scales 1 to 5
         for i in range(1, 6):
-            # DeepLab output_stride=16 means the deepest layers don't downsample to H/32.
-            # We must interpolate DeepLab features to match U-Net feature shapes.
             if u_feat1[i].shape[2:] != d_feat1[i].shape[2:]:
                 d1 = nn.functional.interpolate(d_feat1[i], size=u_feat1[i].shape[2:], mode='bilinear', align_corners=False)
                 d2 = nn.functional.interpolate(d_feat2[i], size=u_feat2[i].shape[2:], mode='bilinear', align_corners=False)
@@ -117,12 +139,11 @@ class GeoSentinelSiameseUNet(nn.Module):
             reduced1 = self.reducers[i-1](concat1)
             reduced2 = self.reducers[i-1](concat2)
             
-            # Difference
-            diff = torch.abs(reduced1 - reduced2)
-            fused_features.append(diff)
+            # Cross Attention Fusion
+            fused = self.cross_attentions[i](reduced1, reduced2)
+            fused_features.append(fused)
             
         # 5. Inject DeepLab Logits at Bottleneck (fused_features[-1])
-        # Pool logits to match bottleneck size
         B, C, H, W = fused_features[-1].shape
         pooled_logits1 = nn.functional.interpolate(logits1, size=(H, W), mode='bilinear', align_corners=False)
         pooled_logits2 = nn.functional.interpolate(logits2, size=(H, W), mode='bilinear', align_corners=False)
@@ -132,8 +153,11 @@ class GeoSentinelSiameseUNet(nn.Module):
         fused_features[-1] = self.bottleneck_fusion(torch.cat([fused_features[-1], logits_diff], dim=1))
         
         # 6. Decode
-        # UnetDecoder in newer SMP expects a positional arguments
-        decoder_output = self.unet.decoder(*fused_features)
+        # UnetDecoder in SMP expects unpacked features: forward(self, *features)
+        try:
+            decoder_output = self.unet.decoder(*fused_features)
+        except TypeError:
+            decoder_output = self.unet.decoder(fused_features)
         
         # 7. Segmentation Head
         masks = self.unet.segmentation_head(decoder_output)

@@ -6,8 +6,7 @@ export const CLASS_COLORS = [
   { name: "Urban", rgb: [220, 20, 60] },
   { name: "Vegetation", rgb: [34, 139, 34] },
   { name: "Water", rgb: [30, 144, 255] },
-  { name: "Barren", rgb: [210, 180, 140] },
-  { name: "Agriculture", rgb: [255, 215, 0] }
+  { name: "Barren", rgb: [210, 180, 140] }
 ];
 
 function colorDistance(r1: number, g1: number, b1: number, r2: number, g2: number, b2: number) {

@@ -172,34 +172,38 @@ class RasterAligner:
         ref_crs = reference_profile["crs"]
         ref_transform = reference_profile["transform"]
 
-        if (
+        grids_match = (
             target_profile["crs"] == ref_crs
             and target_profile["transform"] == ref_transform
             and target_profile["height"] == ref_h
             and target_profile["width"] == ref_w
-        ):
-            # Already aligned
-            return target_array, target_profile
+        )
 
         try:
             from skimage.registration import phase_cross_correlation
             import scipy.ndimage as ndimage
 
-            aligned = np.zeros(
-                (target_array.shape[0], ref_h, ref_w),
-                dtype=target_array.dtype,
-            )
-
-            for i in range(target_array.shape[0]):
-                reproject(
-                    source=target_array[i],
-                    destination=aligned[i],
-                    src_transform=target_profile["transform"],
-                    src_crs=target_profile["crs"],
-                    dst_transform=ref_transform,
-                    dst_crs=ref_crs,
-                    resampling=self.resampling,
+            if grids_match:
+                # Grids match, no need to reproject, just copy
+                aligned = target_array.copy()
+            else:
+                aligned = np.zeros(
+                    (target_array.shape[0], ref_h, ref_w),
+                    dtype=target_array.dtype,
                 )
+
+                for i in range(target_array.shape[0]):
+                    reproject(
+                        source=target_array[i],
+                        destination=aligned[i],
+                        src_transform=target_profile["transform"],
+                        src_crs=target_profile["crs"],
+                        dst_transform=ref_transform,
+                        dst_crs=ref_crs,
+                        src_nodata=target_profile.get("nodata", np.nan),
+                        dst_nodata=reference_profile.get("nodata", np.nan),
+                        resampling=self.resampling,
+                    )
 
             # Sub-pixel co-registration
             # Use NIR band (index 3) if available, else last available band
@@ -207,17 +211,21 @@ class RasterAligner:
             ref_band = reference_array[band_idx]
             tgt_band = aligned[band_idx]
 
+            # Protect against NaNs from cloud masking which destroy FFTs
+            ref_band_safe = np.nan_to_num(ref_band, nan=0.0)
+            tgt_band_safe = np.nan_to_num(tgt_band, nan=0.0)
+
             # Calculate shift
             shift, error, diffphase = phase_cross_correlation(
-                ref_band, tgt_band, upsample_factor=10
+                ref_band_safe, tgt_band_safe, upsample_factor=10
             )
 
             # Apply shift if significant
-            if np.any(np.abs(shift) > 0.05):
+            if np.any(np.abs(shift) > 0.05) and not np.any(np.isnan(shift)):
                 logger.debug(f"Applying sub-pixel shift: {shift}")
                 for i in range(aligned.shape[0]):
                     aligned[i] = ndimage.shift(
-                        aligned[i], shift, order=3, mode='reflect'
+                        aligned[i], shift, order=3, mode='constant', cval=np.nan
                     )
 
         except Exception as exc:

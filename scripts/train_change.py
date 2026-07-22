@@ -126,22 +126,15 @@ class OSCDDataModule(L.LightningDataModule):
     def val_dataloader(self):
         return DataLoader(self.val_ds, batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers, pin_memory=True, persistent_workers=True)
 
-class CombinedLoss(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.dice = smp.losses.DiceLoss(mode="multiclass")
-        # 10x penalty for missing Class 1 (Change) compared to Class 0
-        self.ce = torch.nn.CrossEntropyLoss(weight=torch.tensor([0.1, 0.9]))
-        
-    def forward(self, logits, mask):
-        self.ce.weight = self.ce.weight.to(logits.device)
-        return self.dice(logits, mask) + self.ce(logits, mask)
+from src.models.losses import FocalTverskyLoss
+import argparse
 
 class SiameseLightningModule(L.LightningModule):
-    def __init__(self, deeplab_ckpt_path):
+    def __init__(self, deeplab_ckpt_path, lr=1e-4):
         super().__init__()
         self.model = GeoSentinelSiameseUNet(deeplab_ckpt_path, num_classes=2)
-        self.loss_fn = CombinedLoss()
+        self.loss_fn = FocalTverskyLoss(class_weights=[0.15, 0.85])
+        self.lr = lr
         
     def forward(self, t1, t2):
         return self.model(t1, t2)
@@ -161,13 +154,48 @@ class SiameseLightningModule(L.LightningModule):
         return loss
         
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(filter(lambda p: p.requires_grad, self.model.parameters()), lr=1e-4)
-        return optimizer
+        # Differential learning rates
+        encoder_params = []
+        decoder_params = []
+        
+        # DeepLab is not frozen now
+        if hasattr(self.model, "deeplab"):
+            encoder_params = list(self.model.deeplab.parameters())
+        
+        # Unet encoder also
+        if hasattr(self.model, "unet"):
+            encoder_params += list(self.model.unet.encoder.parameters())
+            decoder_params += list(self.model.unet.decoder.parameters()) + list(self.model.unet.segmentation_head.parameters())
+            
+        # Cross Attention and other fusions
+        for name, param in self.model.named_parameters():
+            if "cross_attentions" in name or "reducers" in name or "bottleneck" in name:
+                decoder_params.append(param)
+                
+        # Remove duplicates
+        encoder_params = list(set(encoder_params))
+        decoder_params = list(set(decoder_params))
+        
+        optimizer = torch.optim.AdamW([
+            {"params": encoder_params, "lr": self.lr * 0.1},
+            {"params": decoder_params, "lr": self.lr}
+        ], weight_decay=1e-4)
+        
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode="min", factor=0.5, patience=5
+        )
+        return {"optimizer": optimizer, "lr_scheduler": {"scheduler": scheduler, "monitor": "val_loss"}}
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--batch-size", type=int, default=1)
+    parser.add_argument("--epochs", type=int, default=100)
+    parser.add_argument("--num-workers", type=int, default=4)
+    args = parser.parse_args()
+
     L.seed_everything(42, workers=True)
     
-    datamodule = OSCDDataModule(batch_size=8, num_workers=4) # Scaled batch size for VRAM, scaled workers to 4 to prevent System RAM exhaustion
+    datamodule = OSCDDataModule(batch_size=args.batch_size, num_workers=args.num_workers)
     
     checkpoint_dir = PROJECT_ROOT / "data" / "weights"
     deeplab_ckpt = checkpoint_dir / "deeplabv3plus_best.pt"
@@ -205,7 +233,7 @@ def main():
     ]
 
     trainer = L.Trainer(
-        max_epochs=50,
+        max_epochs=args.epochs,
         accelerator="auto",
         devices=1,
         precision="32-true",

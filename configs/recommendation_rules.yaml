@@ -13,7 +13,7 @@ rules:
       programs and restrict any further land clearing activities. Notify the
       Telangana Forest Department for intervention.
     why_template: >
-      Vegetation cover decreased by {change_pct:.1f}% ({change_km2:.2f} km²)
+      Vegetation cover decreased by {vegetation_loss_pct:.1f}% ({vegetation_loss_km2:.2f} km²)
       between {date1} and {date2}, which exceeds the critical threshold of {threshold:.0f}%.
 
   vegetation_loss_moderate:
@@ -28,7 +28,7 @@ rules:
       programs in affected zones. Identify drivers (construction, agriculture conversion,
       fire) through ground truth verification. Monitor monthly for further changes.
     why_template: >
-      Vegetation cover decreased by {change_pct:.1f}% ({change_km2:.2f} km²)
+      Vegetation cover decreased by {vegetation_loss_pct:.1f}% ({vegetation_loss_km2:.2f} km²)
       between {date1} and {date2}, exceeding the high-alert threshold of {threshold:.0f}%.
 
   urban_expansion_rapid:
@@ -43,7 +43,7 @@ rules:
       Development Authority) to review Master Plan compliance. Prioritize green buffer zones
       and ensure infrastructure (roads, water, drainage) is upgraded proportionally.
     why_template: >
-      Urban cover increased by {change_pct:.1f}% ({change_km2:.2f} km²)
+      Urban cover increased by {urban_gain_pct:.1f}% ({urban_gain_km2:.2f} km²)
       between {date1} and {date2}, exceeding the rapid-expansion threshold of {threshold:.0f}%.
 
   urban_near_water:
@@ -75,7 +75,7 @@ rules:
       to determine if this is seasonal or permanent. If permanent, file an encroachment
       report with HMDA Water Body Cell. Restore buffer vegetation to reduce evaporation.
     why_template: >
-      Water body cover decreased by {change_pct:.1f}% ({change_km2:.2f} km²)
+      Water body cover decreased by {water_loss_pct:.1f}% ({water_loss_km2:.2f} km²)
       between {date1} and {date2}, exceeding the alert threshold of {threshold:.0f}%.
 
   ndvi_decline:

@@ -166,6 +166,26 @@ class OSCDDataModule(L.LightningDataModule):
         self.batch_size = batch_size
         self.num_workers = num_workers
         
+    def prepare_data(self):
+        from torchgeo.datasets import OSCD
+        import zipfile
+        import shutil
+        import os
+        root_dir = str(PROJECT_ROOT / "data" / "benchmark" / "oscd")
+        
+        # Robust download with 5 retries to bypass flaky French OSCD servers dropping packets
+        for attempt in range(5):
+            try:
+                OSCD(root_dir, split="train", download=True)
+                OSCD(root_dir, split="test", download=True)
+                break
+            except (zipfile.BadZipFile, Exception) as e:
+                print(f"Warning: OSCD download failed (Attempt {attempt+1}/5). Server dropped packets? Error: {e}")
+                if os.path.exists(root_dir):
+                    shutil.rmtree(root_dir)
+                if attempt == 4:
+                    raise e
+        
     def setup(self, stage=None):
         self.train_ds = OSCD12ChannelDataset(PROJECT_ROOT / "data" / "benchmark" / "oscd", "train")
         self.val_ds = OSCD12ChannelDataset(PROJECT_ROOT / "data" / "benchmark" / "oscd", "test", multiplier=10)

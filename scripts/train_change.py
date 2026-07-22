@@ -20,6 +20,25 @@ except ImportError:
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+import rasterio
+import numpy as np
+
+# --- MONKEY-PATCH PIL BUG IN TORCHGEO ---
+# Pillow sometimes throws "ValueError: buffer is not large enough" when reading OSCD TIFFs.
+# We replace TorchGeo's PIL reader with Rasterio which is built for satellite TIFFs.
+import torchgeo.datasets.oscd as oscd_module
+original_load_image = oscd_module.OSCD._load_image
+
+def patched_load_image(self, paths):
+    images = []
+    for path in paths:
+        with rasterio.open(path) as src:
+            images.append(src.read(1))
+    tensor = torch.from_numpy(np.stack(images, axis=0))
+    return tensor
+
+oscd_module.OSCD._load_image = patched_load_image
+# ----------------------------------------
 
 from src.models.siamese import GeoSentinelSiameseUNet
 

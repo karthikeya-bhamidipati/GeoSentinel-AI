@@ -50,6 +50,10 @@ class ProjectLogger:
             with open(config_path, "r", encoding="utf-8") as file:
                 config = yaml.safe_load(file)
 
+            # Ensure log directory exists so FileHandler doesn't crash on a fresh clone
+            log_dir = project_root / "outputs" / "logs"
+            log_dir.mkdir(parents=True, exist_ok=True)
+
             logging.config.dictConfig(config)
 
         else:

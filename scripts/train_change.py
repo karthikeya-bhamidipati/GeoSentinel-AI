@@ -117,18 +117,23 @@ class OSCD12ChannelDataset(Dataset):
             
         # Random Brightness/Contrast Jitter on optical bands (first 6 bands)
         if random.random() > 0.5:
-            # We apply color jitter individually per image to simulate different lighting conditions
             brightness_factor = random.uniform(0.8, 1.2)
             contrast_factor = random.uniform(0.8, 1.2)
             
-            t1[:6] = F.adjust_brightness(t1[:6], brightness_factor)
-            t1[:6] = F.adjust_contrast(t1[:6], contrast_factor)
+            # torchvision adjust_brightness requires exactly 1 or 3 channels.
+            # We split the first 6 channels into two 3-channel chunks.
+            t1[:3] = F.adjust_brightness(t1[:3], brightness_factor)
+            t1[:3] = F.adjust_contrast(t1[:3], contrast_factor)
+            t1[3:6] = F.adjust_brightness(t1[3:6], brightness_factor)
+            t1[3:6] = F.adjust_contrast(t1[3:6], contrast_factor)
             
             brightness_factor2 = random.uniform(0.8, 1.2)
             contrast_factor2 = random.uniform(0.8, 1.2)
             
-            t2[:6] = F.adjust_brightness(t2[:6], brightness_factor2)
-            t2[:6] = F.adjust_contrast(t2[:6], contrast_factor2)
+            t2[:3] = F.adjust_brightness(t2[:3], brightness_factor2)
+            t2[:3] = F.adjust_contrast(t2[:3], contrast_factor2)
+            t2[3:6] = F.adjust_brightness(t2[3:6], brightness_factor2)
+            t2[3:6] = F.adjust_contrast(t2[3:6], contrast_factor2)
             
         return {
             "t1": t1, # [12, H, W]

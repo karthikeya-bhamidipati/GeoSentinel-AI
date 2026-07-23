@@ -116,43 +116,23 @@ class OSCD12ChannelDataset(Dataset):
         t2 = F.crop(t2, i, j, h, w)
         mask = F.crop(mask.unsqueeze(0), i, j, h, w).squeeze(0)
         
-        if random.random() > 0.5:
-            t1 = F.hflip(t1)
-            t2 = F.hflip(t2)
-            mask = F.hflip(mask)
-            
-        if random.random() > 0.5:
-            t1 = F.vflip(t1)
-            t2 = F.vflip(t2)
-            mask = F.vflip(mask)
-            
-        # Random Rotation (0, 90, 180, 270)
-        rot_angle = random.choice([0, 90, 180, 270])
-        if rot_angle > 0:
-            t1 = F.rotate(t1, rot_angle)
-            t2 = F.rotate(t2, rot_angle)
-            # mask has shape [H, W], rotate expects [1, H, W] or [C, H, W]
-            mask = F.rotate(mask.unsqueeze(0), rot_angle).squeeze(0)
-            
-        # Random Brightness/Contrast Jitter on optical bands (first 6 bands)
-        if random.random() > 0.5:
-            brightness_factor = random.uniform(0.8, 1.2)
-            contrast_factor = random.uniform(0.8, 1.2)
-            
-            # torchvision adjust_brightness requires exactly 1 or 3 channels.
-            # We split the first 6 channels into two 3-channel chunks.
-            t1[:3] = F.adjust_brightness(t1[:3], brightness_factor)
-            t1[:3] = F.adjust_contrast(t1[:3], contrast_factor)
-            t1[3:6] = F.adjust_brightness(t1[3:6], brightness_factor)
-            t1[3:6] = F.adjust_contrast(t1[3:6], contrast_factor)
-            
-            brightness_factor2 = random.uniform(0.8, 1.2)
-            contrast_factor2 = random.uniform(0.8, 1.2)
-            
-            t2[:3] = F.adjust_brightness(t2[:3], brightness_factor2)
-            t2[:3] = F.adjust_contrast(t2[:3], contrast_factor2)
-            t2[3:6] = F.adjust_brightness(t2[3:6], brightness_factor2)
-            t2[3:6] = F.adjust_contrast(t2[3:6], contrast_factor2)
+        if self.split == "train":
+            if random.random() > 0.5:
+                t1 = F.hflip(t1)
+                t2 = F.hflip(t2)
+                mask = F.hflip(mask)
+                
+            if random.random() > 0.5:
+                t1 = F.vflip(t1)
+                t2 = F.vflip(t2)
+                mask = F.vflip(mask)
+                
+            # Random Rotation (0, 90, 180, 270)
+            rot_angle = random.choice([0, 90, 180, 270])
+            if rot_angle > 0:
+                t1 = F.rotate(t1, rot_angle)
+                t2 = F.rotate(t2, rot_angle)
+                mask = F.rotate(mask.unsqueeze(0), rot_angle).squeeze(0)
             
         return {
             "t1": t1, # [12, H, W]

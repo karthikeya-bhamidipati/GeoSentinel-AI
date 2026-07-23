@@ -51,6 +51,7 @@ def main():
     parser.add_argument("--weights", type=str, default="data/weights/change_unet_best.pt")
     parser.add_argument("--deeplab-weights", type=str, default="data/weights/deeplabv3plus_best.pt")
     parser.add_argument("--batch-size", type=int, default=1)
+    parser.add_argument("--ablation", action="store_true", help="Evaluate baseline ablation model")
     args = parser.parse_args()
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -66,7 +67,7 @@ def main():
         print(f"Error: Siamese weights not found at {weights_path}")
         return
         
-    model = GeoSentinelSiameseUNet(str(deeplab_path), num_classes=2)
+    model = GeoSentinelSiameseUNet(str(deeplab_path), num_classes=2, ablation_mode=args.ablation)
     
     print(f"Loading weights from {weights_path}")
     checkpoint = torch.load(weights_path, map_location=device, weights_only=True)

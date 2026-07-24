@@ -242,7 +242,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--epochs", type=int, default=100)
-    parser.add_argument("--num-workers", type=int, default=4)
+    parser.add_argument("--num-workers", type=int, default=0)
     parser.add_argument("--ablation", action="store_true", help="Run in ablation mode (ImageNet ResNet50 baseline)")
     args = parser.parse_args()
 
@@ -270,6 +270,18 @@ def main():
                 torch.save({"model_state_dict": model_state}, self.save_path)
                 print(f"  [BEST] Saved orchestrator checkpoint: {self.save_path}")
 
+    class QuietLoggingCallback(L.Callback):
+        def on_validation_epoch_end(self, trainer, pl_module):
+            if trainer.sanity_checking:
+                return
+            epoch = trainer.current_epoch
+            val_loss = trainer.callback_metrics.get("val_loss")
+            train_loss = trainer.callback_metrics.get("train_loss")
+            log_line = f"Epoch {epoch:02d} | Val Loss: {val_loss:.4f}"
+            if train_loss is not None:
+                log_line += f" | Train Loss: {train_loss:.4f}"
+            print(log_line)
+
     # Determine checkpoint filenames based on ablation mode
     ckpt_filename = "change_unet_baseline_best" if args.ablation else "change_unet_best"
     orch_save_path = checkpoint_dir / f"{ckpt_filename}.pt"
@@ -284,7 +296,8 @@ def main():
         ),
         LearningRateMonitor(logging_interval="epoch"),
         EarlyStopping(monitor="val_loss", patience=20, mode="min"),
-        OrchestratorCheckpointCallback(orch_save_path)
+        OrchestratorCheckpointCallback(orch_save_path),
+        QuietLoggingCallback()
     ]
 
     trainer = L.Trainer(
@@ -294,11 +307,11 @@ def main():
         precision="32-true",
         callbacks=callbacks,
         log_every_n_steps=5,
-        enable_progress_bar=True,
+        enable_progress_bar=False,
     )
     
     print("=" * 64)
-    print("  Starting OSCD-only Siamese U-Net Change Detection Training")
+    print("  Starting OSCD-only Siamese U-Net Change Detection Training (Quiet Mode)")
     print("=" * 64)
     
     trainer.fit(task, datamodule=datamodule)

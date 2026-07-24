@@ -159,7 +159,7 @@ class TestPDFReport:
         monkeypatch.setattr(paths, "REPORTS_DIR", output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        gen = PDFReportGenerator()
+        gen = PDFReportGenerator(output_dir)
         data = {
             "metadata": {"date1": "2023-01-15", "date2": "2024-01-15"},
             "area_change": {"rows": synthetic_area_rows, "total_area_km2": 650.0},

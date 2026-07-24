@@ -25,11 +25,10 @@ class TestLandCoverClass:
         assert LandCoverClass.VEGETATION == 2
         assert LandCoverClass.WATER == 3
         assert LandCoverClass.BARREN == 4
-        assert LandCoverClass.AGRICULTURE == 5
 
-    def test_count_is_6(self):
+    def test_count_is_5(self):
         from src.models.unet import LandCoverClass
-        assert len(list(LandCoverClass)) == 6
+        assert len(list(LandCoverClass)) == 5
 
 
 # ---------------------------------------------------------------------------

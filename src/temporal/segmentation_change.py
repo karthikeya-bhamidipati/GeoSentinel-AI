@@ -201,10 +201,23 @@ class SegmentationChangeAnalyzer:
                 change_mask = change_mask_nn & class_changed
             else:
                 change_mask = mask_t1 != mask_t2
-            
-            total_pixels = mask_t1.size
+
+            # Exclude any pixel where T1 or T2 is Background — these are
+            # nodata/cloud/alignment border artifacts, NOT real land-cover
+            # transitions. Background (class 0) appears at borders due to
+            # sub-pixel alignment NaN fill and cloud masking.
+            valid_pixels = (
+                (mask_t1 != LandCoverClass.BACKGROUND)
+                & (mask_t2 != LandCoverClass.BACKGROUND)
+            )
+            change_mask = change_mask & valid_pixels
+
+            total_valid = int(valid_pixels.sum())
             changed_pixels = int(change_mask.sum())
-            changed_pct = changed_pixels / total_pixels * 100
+            changed_pct = (
+                changed_pixels / total_valid * 100
+                if total_valid > 0 else 0.0
+            )
 
             # ----------------------------------------------------------
             # Change map

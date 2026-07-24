@@ -387,7 +387,10 @@ class RecommendationEngine:
             )
             ctx["vegetation_loss_km2"] = abs(veg_change) if veg_change < 0 else 0.0
 
-            ctx["water_loss_km2"] = 0.0
+            water_change = area_change.change_km2.get(
+                LandCoverClass.WATER, 0.0
+            )
+            ctx["water_loss_km2"] = abs(water_change) if water_change < 0 else 0.0
 
             urban_change = area_change.change_km2.get(
                 LandCoverClass.URBAN, 0.0
@@ -399,10 +402,20 @@ class RecommendationEngine:
                 veg_change_pct_abs = (
                     abs(veg_change) / area_change.total_area_km2 * 100
                 )
-                ctx["water_loss_pct"] = 0.0
+                water_change_pct_abs = (
+                    abs(water_change) / area_change.total_area_km2 * 100
+                ) if water_change < 0 else 0.0
+                urban_change_pct_abs = (
+                    urban_change / area_change.total_area_km2 * 100
+                ) if urban_change > 0 else 0.0
+
+                ctx["water_loss_pct"] = water_change_pct_abs
 
                 if "vegetation_loss_pct" not in ctx:
                     ctx["vegetation_loss_pct"] = veg_change_pct_abs
+
+                if "urban_gain_pct" not in ctx:
+                    ctx["urban_gain_pct"] = urban_change_pct_abs
 
         return ctx
 
@@ -472,14 +485,21 @@ class RecommendationEngine:
         seg_change: SegmentationChangeResult,
     ) -> bool:
         """
-        Simplified check for urban expansion near water bodies.
+        Check for urban expansion near water bodies.
 
-        In a full implementation this would use spatial buffers
-        against water body polygons. Here we use the transition matrix
-        to check if any Water→Urban transitions occurred.
+        Uses the transition matrix to detect Water→Urban transitions,
+        which indicate urban encroachment into water body areas.
         """
 
-        return False
+        try:
+            water_to_urban = int(
+                seg_change.transition_matrix[
+                    LandCoverClass.WATER, LandCoverClass.URBAN
+                ]
+            )
+            return water_to_urban > 0
+        except (IndexError, TypeError):
+            return False
 
     # ------------------------------------------------------------------
 

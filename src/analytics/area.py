@@ -77,6 +77,8 @@ class AreaChangeResult:
         t2_map = {a.class_id: a for a in self.t2_areas}
 
         for class_id in range(NUM_CLASSES):
+            if class_id == LandCoverClass.BACKGROUND:
+                continue
             t1 = t1_map.get(class_id)
             t2 = t2_map.get(class_id)
 
@@ -134,10 +136,14 @@ class AreaCalculator:
         list[ClassArea]
         """
 
-        total_pixels = mask.size
+        total_pixels = int((mask != LandCoverClass.BACKGROUND).sum())
+        if total_pixels == 0:
+            total_pixels = mask.size  # fallback if entire mask is background
         areas = []
 
         for class_id in range(NUM_CLASSES):
+            if class_id == LandCoverClass.BACKGROUND:
+                continue
 
             pixel_count = int((mask == class_id).sum())
             area_km2 = pixel_count_to_km2(
@@ -184,11 +190,16 @@ class AreaCalculator:
         change_km2 = {}
         change_pct = {}
 
+        valid_pixel_count = int((mask_t1 != LandCoverClass.BACKGROUND).sum())
+        if valid_pixel_count == 0:
+            valid_pixel_count = mask_t1.size  # fallback
         total_area_km2 = pixel_count_to_km2(
-            mask_t1.size, self.pixel_resolution_m
+            valid_pixel_count, self.pixel_resolution_m
         )
 
         for class_id in range(NUM_CLASSES):
+            if class_id == LandCoverClass.BACKGROUND:
+                continue
             t1_km2 = t1_map.get(class_id, ClassArea(class_id, "", 0, 0.0, 0.0)).area_km2
             t2_km2 = t2_map.get(class_id, ClassArea(class_id, "", 0, 0.0, 0.0)).area_km2
 

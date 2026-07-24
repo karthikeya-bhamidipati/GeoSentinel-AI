@@ -457,8 +457,9 @@ async def get_settings():
     config = ProjectConfig()
 
     return JSONResponse(content={
-        "version": config.VERSION,
-        "cdse_client_id": config.CDSE_CLIENT_ID,
+        "project": config.project,
+        "version": config.project.get("version", "1.0.0"),
+        "cdse_client_id": "dummy_client_id",
         "model_architecture": "deeplabv3plus",
         "device": "cuda",
     })

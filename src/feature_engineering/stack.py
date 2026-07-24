@@ -40,6 +40,7 @@ class FeatureStack:
 
     array: np.ndarray
     channel_names: list[str] = field(default_factory=list)
+    nan_mask: np.ndarray = field(default_factory=lambda: np.zeros((1, 1), dtype=bool))
 
     @property
     def height(self) -> int:
@@ -150,12 +151,17 @@ class FeatureStackBuilder:
 
         stacked = np.stack(resized_arrays, axis=0)
 
+        # Build validity mask BEFORE replacing NaN — a pixel is invalid
+        # if ANY channel is NaN (cloud-masked, alignment border, nodata)
+        nan_mask = np.isnan(stacked).any(axis=0)  # (H, W) bool
+
         # Replace NaN with 0 for model input
         stacked = np.nan_to_num(stacked, nan=0.0)
 
         return FeatureStack(
             array=stacked,
             channel_names=channel_names,
+            nan_mask=nan_mask,
         )
 
     def __repr__(self) -> str:

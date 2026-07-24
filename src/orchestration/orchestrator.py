@@ -399,11 +399,15 @@ class Orchestrator:
             mask_t1 = pred_t1.mask  # (H, W) int
             mask_t2 = pred_t2.mask  # (H, W) int
 
-            # Fix for Cloud Masking Bug: If a pixel is completely masked (all 0s), 
-            # the neural network convolutions produce random classes (often Water or Vegetation).
-            # We explicitly override these nodata/cloud pixels to Background (0).
-            nodata_t1 = (fe_t1.stack.array[:, :min_h_stack, :min_w_stack] == 0).all(axis=0)
-            nodata_t2 = (fe_t2.stack.array[:, :min_h_stack, :min_w_stack] == 0).all(axis=0)
+            # Fix for Cloud/Alignment Masking: Use the pre-computed NaN validity mask
+            # from FeatureStack which tracks pixels that were NaN before nan_to_num.
+            # This catches cloud-masked pixels, alignment border artifacts, and nodata.
+            nodata_t1 = fe_t1.stack.nan_mask[:min_h_stack, :min_w_stack]
+            nodata_t2 = fe_t2.stack.nan_mask[:min_h_stack, :min_w_stack]
+            
+            # Also catch pixels where all channels are zero (additional safety net)
+            nodata_t1 = nodata_t1 | (fe_t1.stack.array[:, :min_h_stack, :min_w_stack] == 0).all(axis=0)
+            nodata_t2 = nodata_t2 | (fe_t2.stack.array[:, :min_h_stack, :min_w_stack] == 0).all(axis=0)
             
             mask_t1[nodata_t1] = 0
             mask_t2[nodata_t2] = 0
@@ -412,6 +416,10 @@ class Orchestrator:
             change_predictor = self._get_change_predictor()
             pred_change = change_predictor.predict(stack_t1, stack_t2)
             ml_change_mask = pred_change.mask  # (H, W) int (0 or 1)
+
+            # Suppress U-Net change detections at nodata pixels — the model sees
+            # zero-filled borders and may flag them as "changed".
+            ml_change_mask[nodata_t1 | nodata_t2] = 0
 
             # Resolve CRS and Affine transform from the T1 reference raster
             scene_crs, scene_transform = self._get_scene_georef(t1_prep.scene)

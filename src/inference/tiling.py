@@ -158,11 +158,7 @@ class TileExtractor:
         pad_w = max(0, ts - W)
 
         if pad_h > 0 or pad_w > 0:
-            array = np.pad(
-                array,
-                ((0, 0), (0, pad_h), (0, pad_w)),
-                mode="reflect",
-            )
+            array = np.pad(array, ((0, 0), (0, pad_h), (0, pad_w)), mode="constant", constant_values=0.0)
 
         return array, (pad_h, pad_w)
 

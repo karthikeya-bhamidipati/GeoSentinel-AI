@@ -25,7 +25,7 @@ from typing import Any
 
 import numpy as np
 
-from src.models.unet import LAND_COVER_NAMES, NUM_CLASSES
+from src.models.unet import LandCoverClass, LAND_COVER_NAMES, NUM_CLASSES
 from src.utils.logger import logger
 
 
@@ -101,6 +101,8 @@ class SpatialStatisticsCalculator:
         stats = []
 
         for class_id in range(NUM_CLASSES):
+            if class_id == LandCoverClass.BACKGROUND:
+                continue
             pixels = index_array[mask == class_id]
 
             # Remove NaN values

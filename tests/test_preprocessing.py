@@ -115,28 +115,40 @@ class TestClipping:
 class TestFeatureStack:
 
     def test_stack_shape(self, synthetic_raster):
-        """Stacking 4 bands and 7 indices should produce a 11-channel tensor."""
+        """Stacking 5 bands and 7 indices should produce a 12-channel tensor."""
         from src.feature_engineering.stack import FeatureStackBuilder
 
         # Build dummy dicts
-        bands = {f"B{i}": synthetic_raster[i] for i in range(4)}
+        bands = {
+            "B02": synthetic_raster[0],
+            "B03": synthetic_raster[0],
+            "B04": synthetic_raster[0],
+            "B08": synthetic_raster[0],
+            "B11": synthetic_raster[0],
+        }
         indices = {name: np.zeros((256, 256), dtype=np.float32)
-                   for name in ["NDVI", "NDBI", "NDWI", "EVI", "SAVI", "MSAVI", "BSI"]}
+                   for name in ["NDVI", "NDBI", "NDWI", "SAVI", "EVI", "MNDWI", "BSI"]}
 
         stack = FeatureStackBuilder().build(bands=bands, indices=indices)
         tensor = stack.array
 
-        # 4 bands + 7 indices = 11
-        assert tensor.shape[0] == 11
+        # 5 bands + 7 indices = 12
+        assert tensor.shape[0] == 12
         assert tensor.shape[1] == 256
         assert tensor.shape[2] == 256
 
     def test_stack_dtype(self, synthetic_raster):
         from src.feature_engineering.stack import FeatureStackBuilder
         
-        bands = {f"B{i}": synthetic_raster[i] for i in range(4)}
+        bands = {
+            "B02": synthetic_raster[0],
+            "B03": synthetic_raster[0],
+            "B04": synthetic_raster[0],
+            "B08": synthetic_raster[0],
+            "B11": synthetic_raster[0],
+        }
         indices = {name: np.zeros((256, 256), dtype=np.float32)
-                   for name in ["NDVI", "NDBI", "NDWI", "EVI", "SAVI", "MSAVI", "BSI"]}
+                   for name in ["NDVI", "NDBI", "NDWI", "SAVI", "EVI", "MNDWI", "BSI"]}
 
         stack = FeatureStackBuilder().build(bands=bands, indices=indices)
         tensor = stack.array

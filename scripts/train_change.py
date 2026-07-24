@@ -83,7 +83,7 @@ class OSCD12ChannelDataset(Dataset):
         
     def __getitem__(self, idx):
         if self.oscd is None:
-            self.oscd = OSCD(str(self.root), split=self.split, download=True)
+            self.oscd = OSCD(str(self.root), split=self.split, download=False)
             
         real_idx = idx // self.multiplier
         item = self.oscd[real_idx]

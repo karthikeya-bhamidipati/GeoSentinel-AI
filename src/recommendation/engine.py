@@ -338,8 +338,11 @@ class RecommendationEngine:
             from dateutil import parser
             d1 = parser.parse(date1)
             d2 = parser.parse(date2)
+            # Use calendar-arc minimum to handle year boundaries correctly
+            # e.g. Nov (11) -> Jan (1): min(|11-1|=10, 12-10=2) = 2 => seasonal
             month_diff = abs(d1.month - d2.month)
-            ctx["seasonal_shift"] = (month_diff > 2 and month_diff < 10)
+            month_diff = min(month_diff, 12 - month_diff)  # wrap around year
+            ctx["seasonal_shift"] = (month_diff >= 2)
         except Exception:
             pass
 
@@ -369,6 +372,20 @@ class RecommendationEngine:
             ctx["urban_expansion_near_water_body"] = (
                 self._check_urban_near_water(seg_change)
             )
+            # Compute Water→Urban encroachment area and set context for template
+            try:
+                water_to_urban_px = int(
+                    seg_change.transition_matrix[
+                        LandCoverClass.WATER, LandCoverClass.URBAN
+                    ]
+                )
+                ctx["area_km2"] = pixel_count_to_km2(water_to_urban_px, pixel_resolution_m)
+                # Approximate: use buffer_m from the rule; here set a sensible context value
+                # A more precise proximity analysis would require spatial vector ops
+                ctx["distance_m"] = 500.0  # nominal buffer from YAML rule
+            except Exception:
+                ctx.setdefault("area_km2", 0.0)
+                ctx.setdefault("distance_m", 500.0)
 
             if seg_change.hotspots:
                 largest = seg_change.hotspots[0]
@@ -411,11 +428,10 @@ class RecommendationEngine:
 
                 ctx["water_loss_pct"] = water_change_pct_abs
 
-                if "vegetation_loss_pct" not in ctx:
-                    ctx["vegetation_loss_pct"] = veg_change_pct_abs
-
-                if "urban_gain_pct" not in ctx:
-                    ctx["urban_gain_pct"] = urban_change_pct_abs
+                # Area-based vegetation and urban percentages are more accurate
+                # than NDVI pixel counts — always overwrite with segmentation-derived values
+                ctx["vegetation_loss_pct"] = veg_change_pct_abs
+                ctx["urban_gain_pct"] = urban_change_pct_abs
 
         return ctx
 
@@ -468,9 +484,16 @@ class RecommendationEngine:
             threshold = rule.threshold_delta or 0.0
             return context.get("ndvi_delta", 0.0) <= threshold
 
-        # Hotspot
+        # Hotspot — enforce the min_cluster_km2 threshold from the rule config.
+        # The internal hotspot detector only filters by min_hotspot_pixels (50px = 0.005 km²).
+        # This rule-level check applies the coarser GIS threshold (0.5 km² by default)
+        # to avoid noisy micro-clusters generating actionable alerts.
         if "hotspot_count > 0" in condition:
-            return context.get("hotspot_count", 0) > 0
+            min_km2 = rule.min_cluster_km2 or 0.0
+            largest_km2 = context.get("largest_km2", 0.0)
+            hotspot_count = context.get("hotspot_count", 0)
+            # Only trigger if there is at least one hotspot exceeding the size threshold
+            return hotspot_count > 0 and largest_km2 >= min_km2
 
         # Stable (fallback)
         if "no_significant_change" in condition:

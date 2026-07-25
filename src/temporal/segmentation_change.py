@@ -55,6 +55,8 @@ class Hotspot:
     def to_dict(self) -> dict:
 
         from_cls, to_cls = self.dominant_transition
+        # Each Sentinel-2 pixel at 10m resolution = 10×10 m = 100 m² = 0.0001 km²
+        size_km2 = round(self.area_pixels * 0.0001, 4)
 
         return {
             "center_row": self.center_row,
@@ -62,6 +64,7 @@ class Hotspot:
             "center_lat": self.center_lat,
             "center_lon": self.center_lon,
             "area_pixels": self.area_pixels,
+            "size_km2": size_km2,
             "from_class": LAND_COVER_NAMES.get(from_cls, str(from_cls)),
             "to_class": LAND_COVER_NAMES.get(to_cls, str(to_cls)),
         }
@@ -337,16 +340,15 @@ class SegmentationChangeAnalyzer:
                 lon = west + (center_col / W) * (east - west)
                 lat = north - (center_row / H) * (north - south)
 
-            # Find dominant T1→T2 transition in this hotspot
+            # Find dominant T1→T2 transition in this hotspot (vectorized)
             t1_values = mask_t1[component]
             t2_values = mask_t2[component]
 
-            transitions = {}
-            for t1, t2 in zip(t1_values, t2_values):
-                key = (int(t1), int(t2))
-                transitions[key] = transitions.get(key, 0) + 1
-
-            dominant = max(transitions, key=transitions.get) if transitions else (0, 0)
+            # Stack pairs and find the most frequent (T1,T2) pair using np.unique
+            pairs = np.stack([t1_values, t2_values], axis=1)
+            unique_pairs, counts = np.unique(pairs, axis=0, return_counts=True)
+            dominant_idx = np.argmax(counts)
+            dominant = (int(unique_pairs[dominant_idx, 0]), int(unique_pairs[dominant_idx, 1]))
 
             hotspots.append(Hotspot(
                 center_row=center_row,

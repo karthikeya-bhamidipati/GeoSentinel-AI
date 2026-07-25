@@ -190,7 +190,10 @@ class AreaCalculator:
         change_km2 = {}
         change_pct = {}
 
-        valid_pixel_count = int((mask_t1 != LandCoverClass.BACKGROUND).sum())
+        valid_pixel_count = int(
+            ((mask_t1 != LandCoverClass.BACKGROUND) |
+             (mask_t2 != LandCoverClass.BACKGROUND)).sum()
+        )
         if valid_pixel_count == 0:
             valid_pixel_count = mask_t1.size  # fallback
         total_area_km2 = pixel_count_to_km2(

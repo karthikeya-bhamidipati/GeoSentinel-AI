@@ -39,10 +39,17 @@ export function HistoryList({ onLoadHistory }: HistoryListProps) {
     e.stopPropagation();
     if (!confirm("Are you sure you want to permanently delete this analysis?")) return;
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/analysis/${jobId}`, {
-        method: "DELETE"
+      const apiBase = process.env.NEXT_PUBLIC_API_URL
+        ? `${process.env.NEXT_PUBLIC_API_URL}/api/v1`
+        : "/api/v1";
+      const response = await fetch(`${apiBase}/analysis/${jobId}`, {
+        method: "DELETE",
       });
-      fetchHistory(); // Refresh the list
+      if (!response.ok && response.status !== 404) {
+        const err = await response.json().catch(() => ({}));
+        console.error("Delete failed:", err.detail ?? response.statusText);
+      }
+      fetchHistory(); // Refresh the list regardless
     } catch (err) {
       console.error("Failed to delete job", err);
     }

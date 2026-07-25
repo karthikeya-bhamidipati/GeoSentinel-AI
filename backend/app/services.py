@@ -321,10 +321,15 @@ class JobQueue:
             if record.completed_at is None:
                 continue
 
-            completed = datetime.fromisoformat(record.completed_at)
-
-            if completed < cutoff:
-                to_remove.append(job_id)
+            try:
+                completed = datetime.fromisoformat(record.completed_at)
+                # Ensure both datetimes are comparable (add UTC if naive)
+                if completed.tzinfo is None:
+                    completed = completed.replace(tzinfo=UTC)
+                if completed < cutoff:
+                    to_remove.append(job_id)
+            except (ValueError, TypeError):
+                pass  # Malformed timestamp — skip this record
 
         for job_id in to_remove:
             self.delete_job(job_id)

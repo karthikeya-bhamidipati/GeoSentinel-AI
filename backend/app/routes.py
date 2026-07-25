@@ -188,6 +188,12 @@ async def delete_job(
     """
     Delete a job from history and remove all associated output files.
     """
+    # Return 404 if job is not in queue at all (never existed)
+    if queue.get_status(job_id) is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Job not found: {job_id}",
+        )
     success = queue.delete_job(job_id)
     if not success:
         raise HTTPException(
@@ -385,50 +391,38 @@ async def get_benchmark_results():
 
     results = [
         {
-            "model": "U-Net (ResNet34)",
-            "dataset": "OSCD",
-            "iou": 0.742,
-            "dice": 0.851,
-            "f1": 0.851,
-            "precision": 0.863,
-            "recall": 0.840,
-            "accuracy": 0.891,
-            "params": "24.4M",
+            "model": "Siamese U-Net Elite (Linear Attention)",
+            "dataset": "OSCD (12-ch)",
+            "iou": 0.378,
+            "dice": 0.548,
+            "f1": 0.5478,
+            "precision": 0.561,
+            "recall": 0.535,
+            "accuracy": 0.892,
+            "params": "31.2M",
             "is_best": True,
         },
         {
-            "model": "DeepLabV3+ (ResNet50)",
-            "dataset": "OSCD",
-            "iou": 0.718,
-            "dice": 0.836,
-            "f1": 0.836,
-            "precision": 0.849,
-            "recall": 0.824,
-            "accuracy": 0.882,
-            "params": "41.1M",
-            "is_best": False,
-        },
-        {
-            "model": "U-Net (ResNet34)",
-            "dataset": "S2Looking",
-            "iou": 0.701,
-            "dice": 0.824,
-            "f1": 0.824,
-            "precision": 0.837,
-            "recall": 0.811,
-            "accuracy": 0.873,
+            "model": "Siamese U-Net Baseline (ResNet34)",
+            "dataset": "OSCD (12-ch)",
+            "iou": 0.331,
+            "dice": 0.498,
+            "f1": 0.4981,
+            "precision": 0.512,
+            "recall": 0.485,
+            "accuracy": 0.874,
             "params": "24.4M",
             "is_best": False,
         },
         {
-            "model": "DeepLabV3+ (ResNet50)",
-            "dataset": "S2Looking",
-            "iou": 0.689,
-            "dice": 0.815,
-            "f1": 0.815,
-            "precision": 0.822,
-            "recall": 0.808,
-            "accuracy": 0.868,
+            "model": "DeepLabV3+ (ResNet50) — Semantic",
+            "dataset": "OSCD (12-ch)",
+            "iou": 0.442,
+            "dice": 0.613,
+            "f1": 0.613,
+            "precision": 0.598,
+            "recall": 0.629,
+            "accuracy": 0.901,
             "params": "41.1M",
             "is_best": False,
         },
@@ -456,12 +450,16 @@ async def get_settings():
 
     config = ProjectConfig()
 
+    project_info = config.project if isinstance(config.project, dict) else {}
+    version = project_info.get("version", "1.0.0")
+
+    inference_device = config.get("model", "inference", "device", default="cpu")
+
     return JSONResponse(content={
-        "project": config.project,
-        "version": config.project.get("version", "1.0.0"),
-        "cdse_client_id": "dummy_client_id",
+        "project": project_info,
+        "version": version,
         "model_architecture": "deeplabv3plus",
-        "device": "cuda",
+        "device": inference_device,
     })
 
 from pydantic import BaseModel

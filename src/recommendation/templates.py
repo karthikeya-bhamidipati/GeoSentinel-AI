@@ -91,6 +91,9 @@ class ExplanationRenderer:
             "center_lon": 78.486,
             "distance_m": 0.0,
             "area_km2": 0.0,
+            "barren_gain_pct": 0.0,
+            "barren_gain_km2": 0.0,
+            "water_to_veg_km2": 0.0,
         }
 
         return {**defaults, **context}

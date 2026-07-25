@@ -460,6 +460,16 @@ class Orchestrator:
             for k in fe_t2.indices.keys():
                 fe_t2.indices[k] = fe_t2.indices[k][:min_h, :min_w]
 
+            # Also crop the feature stacks so exported RGB visualisations have identical bounds
+            if fe_t1.stack is not None:
+                fe_t1.stack.array = fe_t1.stack.array[:, :min_h, :min_w]
+                if hasattr(fe_t1.stack, "nan_mask") and fe_t1.stack.nan_mask is not None:
+                    fe_t1.stack.nan_mask = fe_t1.stack.nan_mask[:min_h, :min_w]
+            if fe_t2.stack is not None:
+                fe_t2.stack.array = fe_t2.stack.array[:, :min_h, :min_w]
+                if hasattr(fe_t2.stack, "nan_mask") and fe_t2.stack.nan_mask is not None:
+                    fe_t2.stack.nan_mask = fe_t2.stack.nan_mask[:min_h, :min_w]
+
             # NOTE: Do NOT overwrite mask_t2 here. The segmentation_change.analyze()
             # method already handles false-positive suppression internally by
             # intersecting ml_change_mask with (mask_t1 != mask_t2).

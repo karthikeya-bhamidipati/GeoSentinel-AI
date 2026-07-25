@@ -109,6 +109,38 @@ rules:
       The largest hotspot covers {largest_km2:.2f} km² centered at {center_lat:.4f}°N,
       {center_lon:.4f}°E.
 
+  barren_land_expansion:
+    id: "BARREN_EXPANSION"
+    category: "Land Exposure"
+    severity: "MEDIUM"
+    threshold_pct: 10.0
+    condition: "barren_gain_pct >= threshold"
+    title: "Significant Barren Land Exposure"
+    recommendation: >
+      Significant topsoil exposure or land clearing has been detected. This is often a precursor
+      to rapid urban construction or indicates wind/water topsoil erosion. Implement sediment
+      retention basins, silt fencing, or immediate hydroseeding/cover crops in vulnerable slopes
+      to prevent topsoil degradation and local drainage blockages.
+    why_template: >
+      Barren soil cover increased by {barren_gain_pct:.1f}% ({barren_gain_km2:.2f} km²)
+      between {date1} and {date2}, exceeding the land clearing threshold of {threshold:.0f}%.
+
+  eutrophication_siltation:
+    id: "EUTROPHICATION"
+    category: "Water Quality"
+    severity: "MEDIUM"
+    condition: "water_to_veg_transition"
+    title: "Potential Lake Siltation or Weed Infestation"
+    recommendation: >
+      A transition of open water bodies to vegetation has been detected. This typically indicates
+      rapid weed proliferation (e.g. water hyacinth infestation), lake siltation, or algal blooms
+      triggered by agricultural runoff or untreated sewage. Coordinate with the HMDA Lake Protection
+      Committee or Telangana State Pollution Control Board to conduct dissolved oxygen surveys
+      and schedule mechanical harvesting.
+    why_template: >
+      A transition of water body areas to vegetation was detected ({water_to_veg_km2:.2f} km² affected).
+      This indicates potential weed encroachment, eutrophication, or localized lake siltation.
+
   stable:
     id: "STABLE"
     category: "General"

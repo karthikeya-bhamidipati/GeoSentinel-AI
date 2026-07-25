@@ -387,6 +387,21 @@ class RecommendationEngine:
                 ctx.setdefault("area_km2", 0.0)
                 ctx.setdefault("distance_m", 500.0)
 
+            # Eutrophication / siltation: check for Water→Vegetation transitions
+            try:
+                water_to_veg_px = int(
+                    seg_change.transition_matrix[
+                        LandCoverClass.WATER, LandCoverClass.VEGETATION
+                    ]
+                )
+                ctx["water_to_veg_pixels"] = water_to_veg_px
+                ctx["water_to_veg_km2"] = pixel_count_to_km2(water_to_veg_px, pixel_resolution_m)
+                ctx["water_to_veg_transition"] = water_to_veg_px > 0
+            except Exception:
+                ctx["water_to_veg_pixels"] = 0
+                ctx["water_to_veg_km2"] = 0.0
+                ctx["water_to_veg_transition"] = False
+
             if seg_change.hotspots:
                 largest = seg_change.hotspots[0]
                 ctx["largest_km2"] = pixel_count_to_km2(
@@ -414,6 +429,11 @@ class RecommendationEngine:
             )
             ctx["urban_gain_km2"] = urban_change if urban_change > 0 else 0.0
 
+            barren_change = area_change.change_km2.get(
+                LandCoverClass.BARREN, 0.0
+            )
+            ctx["barren_gain_km2"] = barren_change if barren_change > 0 else 0.0
+
             # Percentage changes relative to total area
             if area_change.total_area_km2 > 0:
                 veg_change_pct_abs = (
@@ -425,6 +445,9 @@ class RecommendationEngine:
                 urban_change_pct_abs = (
                     urban_change / area_change.total_area_km2 * 100
                 ) if urban_change > 0 else 0.0
+                barren_change_pct_abs = (
+                    barren_change / area_change.total_area_km2 * 100
+                ) if barren_change > 0 else 0.0
 
                 ctx["water_loss_pct"] = water_change_pct_abs
 
@@ -432,6 +455,7 @@ class RecommendationEngine:
                 # than NDVI pixel counts — always overwrite with segmentation-derived values
                 ctx["vegetation_loss_pct"] = veg_change_pct_abs
                 ctx["urban_gain_pct"] = urban_change_pct_abs
+                ctx["barren_gain_pct"] = barren_change_pct_abs
 
         return ctx
 
@@ -468,10 +492,21 @@ class RecommendationEngine:
             threshold = rule.threshold_pct or 0.0
             return context.get("urban_gain_pct", 0.0) >= threshold
 
+        # Barren land expansion rules
+        if "barren_gain_pct >= threshold" in condition:
+            threshold = rule.threshold_pct or 0.0
+            return context.get("barren_gain_pct", 0.0) >= threshold
+
         # Urban near water
         if "urban_expansion_near_water_body" in condition:
             return bool(
                 context.get("urban_expansion_near_water_body", False)
+            )
+
+        # Eutrophication / siltation
+        if "water_to_veg_transition" in condition:
+            return bool(
+                context.get("water_to_veg_transition", False)
             )
 
         # Water body loss

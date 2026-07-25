@@ -70,13 +70,13 @@ Both models were trained using the Focal Tversky Loss function (weighted $[0.15,
 ### 6.1. Quantitative Metrics
 | Model | Precision | Recall | F1-Score | Overall Accuracy |
 | :--- | :--- | :--- | :--- | :--- |
-| **Baseline (ImageNet)** | 0.3640 | 0.3466 | 0.3551 | 0.9492 |
+| **Baseline (ImageNet)** | 0.5883 | 0.4319 | 0.4981 | 0.9620 |
 | **Proposed (Semantic)** | 0.5628 | 0.5336 | 0.5478 | 0.9603 |
 
 ### 6.2. Discussion
-Our experimental design was a strict ablation study built directly on top of an industry-standard baseline: the **Siamese ResNet34 U-Net** initialized with generic ImageNet weights. None of the referenced SOTA models (e.g., SNUNet, ChangeFormer) utilize this exact baseline; they rely on entirely custom backbones (UNet++, Swin-Transformers). By holding the core U-Net architecture constant and replacing only the generic initialization with our **Semantic Anchor** (and introducing Linear Attention), we proved a strict, isolated **~19.27% absolute improvement in F1-Score** (jumping from 35.51% to 54.78%). As observed in our analysis: *"When researchers use standard Siamese U-Nets (like FC-Siam), they score around 35% to 45%. Without changing the spatial complexity of the U-Net at all, I pushed that exact same baseline architecture up to 54.78% purely by introducing a Semantic Anchor and Linear Attention."*
+Our experimental design was a strict ablation study built directly on top of an industry-standard baseline: the **Siamese ResNet34 U-Net** initialized with generic ImageNet weights. None of the referenced SOTA models (e.g., SNUNet, ChangeFormer) utilize this exact baseline; they rely on entirely custom backbones (UNet++, Swin-Transformers). By holding the core U-Net architecture constant and replacing only the generic initialization with our **Semantic Anchor** (and introducing Linear Attention), we proved a strict, isolated **~4.97% absolute improvement in F1-Score** (jumping from 49.81% to 54.78%). As observed in our analysis: *"When researchers use standard Siamese U-Nets (like FC-Siam), they score around 45% to 49%. Without changing the spatial complexity of the U-Net at all, I pushed that exact same baseline architecture from 49.81% up to 54.78% purely by introducing a Semantic Anchor and Linear Attention."*
 
-This indicates that providing the network with a pre-trained understanding of "what" is changing (e.g., vegetation, water, urban areas) before asking it "where" changes occurred allows the U-Net architecture to better differentiate structural changes from pseudo-changes (seasonal phenology or illumination differences). The standard ImageNet Baseline struggled to identify positive changes (Recall: 0.3466), whereas the Semantically-Anchored Elite model drastically improved the true positive rate (Recall: 0.5336). Furthermore, the underlying DeepLabV3+ semantic engine demonstrated robust feature extraction capabilities on the complex 12-channel imagery, achieving high F1-Scores across distinct typologies (Water: 0.9613, Urban: 0.9150, Vegetation: 0.8676).
+This indicates that providing the network with a pre-trained understanding of "what" is changing (e.g., vegetation, water, urban areas) before asking it "where" changes occurred allows the U-Net architecture to better differentiate structural changes from pseudo-changes (seasonal phenology or illumination differences). The standard ImageNet Baseline struggled to identify positive changes (Recall: 0.4319), whereas the Semantically-Anchored Elite model drastically improved the true positive rate (Recall: 0.5336). Furthermore, the underlying DeepLabV3+ semantic engine demonstrated robust feature extraction capabilities on the complex 12-channel imagery, achieving high F1-Scores across distinct typologies (Water: 0.9613, Urban: 0.9150, Vegetation: 0.8676).
 
 ### 6.3. SOTA Architecture Comparison
 To contextualize the performance of the Semantically-Anchored Linear Attention U-Net, we compared our architecture against prominent State-of-the-Art (SOTA) models on the OSCD dataset. We specifically analyzed papers that attempted to solve the same two core problems: the computational bottleneck of standard Transformers, and the lack of semantic priors in CNNs.
@@ -85,6 +85,7 @@ To contextualize the performance of the Semantically-Anchored Linear Attention U
 | :--- | :--- | :--- | :--- |
 | **FC-Siam-diff [8] (2018)** | Fully Convolutional Siamese | ~45.0% | $O(N)$ |
 | **STANet [1]** | CNN + Spatial-Temporal Attention | ~49.5% | $O(N^2)$ |
+| **Baseline (ImageNet)** | Siamese ResNet34 U-Net | **49.81%** | **$O(N)$** |
 | **SNUNet [2]** | Dense Siamese UNet++ | ~51.2% | $O(N)$ |
 | **PSI-CD [5] (2022)** | CNN + Prior Semantic Mask | ~52.1% | $O(N)$ |
 | **TinyCD [6] (2022)** | Minimalist Siamese MLP | ~52.5% | $O(N)$ |

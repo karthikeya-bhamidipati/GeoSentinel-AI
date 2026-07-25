@@ -53,27 +53,27 @@ export function CyberTerminal({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 30 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 30 }}
+      initial={{ opacity: 0, scale: 0.96, x: "-50%", y: "-46%" }}
+      animate={{ opacity: 1, scale: 1, x: "-50%", y: "-50%" }}
+      exit={{ opacity: 0, scale: 0.96, x: "-50%", y: "-46%" }}
+      transition={{ duration: 0.25, ease: "easeOut" }}
       className="cyber-terminal"
       style={{
-        position: "absolute",
-        bottom: "var(--gap)",
-        top: "auto",
-        right: "var(--gap)",
-        width: "var(--right-panel-width)",
-        height: "280px",
-        background: "rgba(10, 10, 15, 0.88)",
-        backdropFilter: "blur(20px) saturate(160%)",
-        WebkitBackdropFilter: "blur(20px) saturate(160%)",
-        border: "1px solid rgba(56, 189, 248, 0.25)",
-        borderRadius: "var(--radius-lg)",
+        position: "fixed",
+        top: "50%",
+        left: "50%",
+        width: "540px",
+        height: "320px",
+        background: "rgba(10, 10, 15, 0.93)",
+        backdropFilter: "blur(24px) saturate(170%)",
+        WebkitBackdropFilter: "blur(24px) saturate(170%)",
+        border: "1px solid rgba(56, 189, 248, 0.35)",
+        borderRadius: "var(--radius-xl)",
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
-        zIndex: 2000,
-        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.7), 0 0 15px rgba(56, 189, 248, 0.15)",
+        zIndex: 9999,
+        boxShadow: "0 24px 64px rgba(0, 0, 0, 0.8), 0 0 30px rgba(56, 189, 248, 0.25)",
         fontFamily: "var(--font-mono)"
       }}
     >
@@ -85,7 +85,7 @@ export function CyberTerminal({
         }
         @keyframes scanline {
           0% { transform: translateY(-100%); }
-          100% { transform: translateY(280px); }
+          100% { transform: translateY(320px); }
         }
         .cyber-scanline {
           position: absolute;

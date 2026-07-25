@@ -139,8 +139,8 @@ export function RightPanel({ result, isLoading, progressMessage, jobId }: RightP
 function MetadataPanel({ result }: { result: AnalysisResult }) {
   const rows = [
     { label: "Job ID", value: result.job_id, mono: true },
-    { label: "Date T1", value: result.date1 },
-    { label: "Date T2", value: result.date2 },
+    { label: "Date T1 (Acquisition)", value: result.metadata?.acquisition_date_t1 || result.date1 },
+    { label: "Date T2 (Acquisition)", value: result.metadata?.acquisition_date_t2 || result.date2 },
     { label: "Scene T1", value: result.scene_t1_id, mono: true },
     { label: "Scene T2", value: result.scene_t2_id, mono: true },
     { label: "Cloud Cover T1", value: result.metadata?.cloud_cover_t1 != null ? `${result.metadata.cloud_cover_t1}%` : "—" },

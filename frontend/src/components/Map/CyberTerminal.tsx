@@ -64,16 +64,16 @@ export function CyberTerminal({
         left: "50%",
         width: "540px",
         height: "320px",
-        background: "rgba(10, 10, 15, 0.93)",
-        backdropFilter: "blur(24px) saturate(170%)",
-        WebkitBackdropFilter: "blur(24px) saturate(170%)",
-        border: "1px solid rgba(56, 189, 248, 0.35)",
+        background: "rgba(10, 10, 15, 0.65)", // Premium semi-translucent glass
+        backdropFilter: "var(--glass-blur)",
+        WebkitBackdropFilter: "var(--glass-blur)",
+        border: "1px solid rgba(255, 255, 255, 0.08)", // matches --color-border
         borderRadius: "var(--radius-xl)",
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
         zIndex: 9999,
-        boxShadow: "0 24px 64px rgba(0, 0, 0, 0.8), 0 0 30px rgba(56, 189, 248, 0.25)",
+        boxShadow: "0 24px 64px rgba(0, 0, 0, 0.8), inset 0 0 20px rgba(255, 255, 255, 0.02)",
         fontFamily: "var(--font-mono)"
       }}
     >
@@ -93,7 +93,7 @@ export function CyberTerminal({
           left: 0;
           width: 100%;
           height: 8px;
-          background: linear-gradient(to bottom, transparent, rgba(56, 189, 248, 0.2), transparent);
+          background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.08), transparent);
           animation: scanline 4s linear infinite;
           pointer-events: none;
           z-index: 10;
@@ -101,10 +101,20 @@ export function CyberTerminal({
         .pulse-step {
           animation: pulse-glow 1s infinite alternate;
         }
+        .cyber-close-btn:hover {
+          background: rgba(255, 255, 255, 0.05) !important;
+          color: #fff !important;
+        }
       `}</style>
 
       {/* Holographic sweep laser line */}
       <div className="cyber-scanline" />
+
+      {/* Tactical HUD Corner Brackets */}
+      <div style={{ position: "absolute", top: 0, left: 0, width: 8, height: 8, borderTop: "2px solid rgba(255,255,255,0.4)", borderLeft: "2px solid rgba(255,255,255,0.4)", pointerEvents: "none", zIndex: 12 }} />
+      <div style={{ position: "absolute", top: 0, right: 0, width: 8, height: 8, borderTop: "2px solid rgba(255,255,255,0.4)", borderRight: "2px solid rgba(255,255,255,0.4)", pointerEvents: "none", zIndex: 12 }} />
+      <div style={{ position: "absolute", bottom: 0, left: 0, width: 8, height: 8, borderBottom: "2px solid rgba(255,255,255,0.4)", borderLeft: "2px solid rgba(255,255,255,0.4)", pointerEvents: "none", zIndex: 12 }} />
+      <div style={{ position: "absolute", bottom: 0, right: 0, width: 8, height: 8, borderBottom: "2px solid rgba(255,255,255,0.4)", borderRight: "2px solid rgba(255,255,255,0.4)", pointerEvents: "none", zIndex: 12 }} />
 
       {/* Terminal Header */}
       <div className="cyber-terminal-header" style={{
@@ -113,7 +123,9 @@ export function CyberTerminal({
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        borderBottom: "1px solid rgba(255, 255, 255, 0.06)"
+        borderBottom: "1px solid rgba(255, 255, 255, 0.06)",
+        position: "relative",
+        zIndex: 11
       }}>
         <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
           {/* Pulsing indicator lights */}
@@ -121,9 +133,9 @@ export function CyberTerminal({
             width: 8, 
             height: 8, 
             borderRadius: "50%", 
-            background: status === "failed" ? "#f87171" : "#f87171",
+            background: "#f87171",
             opacity: status === "failed" ? 1 : 0.4,
-            boxShadow: status === "failed" ? "0 0 6px #f87171" : "none"
+            boxShadow: status === "failed" ? "0 0 8px #f87171" : "none"
           }} />
           <div style={{ 
             width: 8, 
@@ -131,7 +143,7 @@ export function CyberTerminal({
             borderRadius: "50%", 
             background: "#fbbf24",
             opacity: status === "queued" ? 1 : 0.4,
-            boxShadow: status === "queued" ? "0 0 6px #fbbf24" : "none"
+            boxShadow: status === "queued" ? "0 0 8px #fbbf24" : "none"
           }} />
           <div style={{ 
             width: 8, 
@@ -140,13 +152,26 @@ export function CyberTerminal({
             background: "#34d399",
             opacity: status === "running" ? 1 : (status === "completed" ? 0.8 : 0.4),
             animation: status === "running" ? "pulse-glow 0.8s infinite alternate" : "none",
-            boxShadow: status === "running" || status === "completed" ? "0 0 8px #34d399" : "none"
+            boxShadow: status === "running" || status === "completed" ? "0 0 10px #34d399" : "none"
           }} />
         </div>
-        <div style={{ color: "#38bdf8", fontSize: "10px", fontWeight: 600, letterSpacing: "1.5px", textShadow: "0 0 4px rgba(56,189,248,0.3)" }}>
-          PIPELINE_EXEC // {status.toUpperCase()}
+        <div style={{ color: "rgba(255, 255, 255, 0.8)", fontSize: "10px", fontWeight: 600, letterSpacing: "1.5px", textTransform: "uppercase" }}>
+          Pipeline Diagnostics // {status}
         </div>
-        <button onClick={onClose} style={{ background: "transparent", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: "12px" }}>✕</button>
+        <button onClick={onClose} className="cyber-close-btn" style={{ 
+          background: "transparent", 
+          border: "none", 
+          color: "rgba(255,255,255,0.4)", 
+          cursor: "pointer", 
+          fontSize: "12px",
+          width: "20px",
+          height: "20px",
+          borderRadius: "4px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          transition: "all 0.2s"
+        }}>✕</button>
       </div>
 
       {/* LED HUD Progress Segments */}
@@ -157,7 +182,7 @@ export function CyberTerminal({
         gap: "4px",
         padding: "8px 14px",
         background: "rgba(0, 0, 0, 0.4)",
-        borderBottom: "1px solid rgba(56, 189, 248, 0.12)",
+        borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
         position: "relative",
         zIndex: 5
       }}>
@@ -177,12 +202,12 @@ export function CyberTerminal({
                 background: isCompleted 
                   ? stepInfo.color 
                   : isActive 
-                    ? "#38bdf8"
+                    ? "#ffffff"
                     : "rgba(255, 255, 255, 0.08)",
                 boxShadow: isCompleted 
                   ? `0 0 6px ${stepInfo.color}` 
                   : isActive 
-                    ? `0 0 10px #38bdf8` 
+                    ? `0 0 10px #ffffff` 
                     : "none",
                 transition: "all 0.3s ease",
               }}
@@ -197,14 +222,14 @@ export function CyberTerminal({
         padding: "6px 14px",
         background: "rgba(0, 0, 0, 0.2)",
         fontSize: "10px",
-        color: "#e2e8f0",
+        color: "#cbd5e1",
         borderBottom: "1px solid rgba(255, 255, 255, 0.04)",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between"
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "80%" }}>
-          <span style={{ color: "#38bdf8", fontWeight: 700 }}>&gt;</span>
+          <span style={{ color: "rgba(255, 255, 255, 0.4)", fontWeight: 700 }}>&gt;</span>
           <span style={{ opacity: 0.9 }}>{progressMessage || (status === "running" ? "Initializing..." : "Ready")}</span>
         </div>
         <div style={{ opacity: 0.5, fontSize: "9px", flexShrink: 0 }}>
@@ -225,20 +250,20 @@ export function CyberTerminal({
           const stepInfo = PIPELINE_STEPS[log.step] || { label: "SYSTEM", color: "#64748b" };
           return (
             <div key={i} className="cyber-terminal-line" style={{ display: "flex", fontSize: "11px", gap: "6px", lineHeight: "1.4" }}>
-              <span className="timestamp" style={{ color: "#38bdf8", opacity: 0.6 }}>[{log.timestamp}]</span>
-              <span className="step-tag" style={{ color: stepInfo.color, minWidth: "80px", opacity: 0.95 }}>&lt;{stepInfo.label}&gt;</span>
-              <span style={{ color: "#cbd5e1" }}>{log.message}</span>
+              <span className="timestamp" style={{ color: "rgba(255, 255, 255, 0.35)", fontSize: "10px" }}>[{log.timestamp}]</span>
+              <span className="step-tag" style={{ color: stepInfo.color, minWidth: "90px", fontSize: "10.5px", fontWeight: 600 }}>[{stepInfo.label.toUpperCase()}]</span>
+              <span style={{ color: "var(--color-text-secondary)" }}>{log.message}</span>
             </div>
           );
         })}
         {status === "running" && (
           <div className="cyber-terminal-line" style={{ display: "flex", fontSize: "11px", gap: "6px", marginTop: "2px" }}>
-            <span style={{ color: "#38bdf8", opacity: 0.6 }}>[SYS]</span>
-            <span style={{ color: "#38bdf8" }}>&gt;</span>
+            <span style={{ color: "rgba(255, 255, 255, 0.35)" }}>[SYS]</span>
+            <span style={{ color: "var(--color-text-secondary)" }}>&gt;</span>
             <motion.span 
               animate={{ opacity: [1, 0] }} 
               transition={{ repeat: Infinity, duration: 0.8 }}
-              style={{ width: "6px", height: "12px", background: "#38bdf8", display: "inline-block" }}
+              style={{ width: "6px", height: "12px", background: "rgba(255,255,255,0.7)", display: "inline-block", marginLeft: "4px" }}
             />
           </div>
         )}

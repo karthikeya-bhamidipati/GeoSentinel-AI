@@ -279,10 +279,13 @@ class FocalTverskyLoss(nn.Module):
         num_classes = logits.shape[1]
         probs = F.softmax(logits, dim=1)
         
-        targets_one_hot = F.one_hot(targets.long(), num_classes=num_classes).permute(0, 3, 1, 2).float()
-        
-        if self.ignore_index is not None:
-            mask = (targets != self.ignore_index).unsqueeze(1).float()
+        valid = targets != self.ignore_index if self.ignore_index is not None else None
+        # one_hot cannot take ignore labels (e.g. -1), so map them to class 0 and mask them out below
+        safe = targets.long() if valid is None else torch.where(valid, targets.long(), torch.zeros_like(targets.long()))
+        targets_one_hot = F.one_hot(safe, num_classes=num_classes).permute(0, 3, 1, 2).float()
+
+        if valid is not None:
+            mask = valid.unsqueeze(1).float()
             probs = probs * mask
             targets_one_hot = targets_one_hot * mask
             
@@ -325,10 +328,13 @@ class BoundaryLoss(nn.Module):
         probs = F.softmax(logits, dim=1)
         num_classes = probs.shape[1]
         
-        targets_one_hot = F.one_hot(targets.long(), num_classes=num_classes).permute(0, 3, 1, 2).float()
-        
-        if self.ignore_index is not None:
-            mask = (targets != self.ignore_index).unsqueeze(1).float()
+        valid = targets != self.ignore_index if self.ignore_index is not None else None
+        # one_hot cannot take ignore labels (e.g. -1), so map them to class 0 and mask them out below
+        safe = targets.long() if valid is None else torch.where(valid, targets.long(), torch.zeros_like(targets.long()))
+        targets_one_hot = F.one_hot(safe, num_classes=num_classes).permute(0, 3, 1, 2).float()
+
+        if valid is not None:
+            mask = valid.unsqueeze(1).float()
             probs = probs * mask
             targets_one_hot = targets_one_hot * mask
 

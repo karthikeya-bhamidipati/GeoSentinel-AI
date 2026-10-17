@@ -69,8 +69,8 @@ class CrossAttentionFusion(nn.Module):
         
         # Compute Channel Cross-Attention (feat1 attending to feat2 channels)
         # Query from T1, Key and Value from T2
-        query = feat1.view(b, c, -1) # B x C x (HW)
-        key = feat2.view(b, c, -1).permute(0, 2, 1) # B x (HW) x C
+        query = feat1.reshape(b, c, -1) # B x C x (HW)
+        key = feat2.reshape(b, c, -1).permute(0, 2, 1) # B x (HW) x C
         
         # Attention map: C x C (correlation between each channel in T1 and T2)
         energy = torch.bmm(query, key) # B x C x C
@@ -79,11 +79,11 @@ class CrossAttentionFusion(nn.Module):
         energy = energy / ((h * w) ** 0.5)
         attention = F.softmax(energy, dim=-1) # B x C x C
         
-        value = feat2.view(b, c, -1) # B x C x (HW)
+        value = feat2.reshape(b, c, -1) # B x C x (HW)
         
         # Apply attention to T2 features
         out = torch.bmm(attention, value) # B x C x (HW)
-        out = out.view(b, c, h, w)
+        out = out.reshape(b, c, h, w)
         
         # Residual connection scaled by gamma
         cross_feat = self.gamma * out + feat1
@@ -131,9 +131,9 @@ class EfficientLinearAttentionBlock(nn.Module):
         hw = h * w
         
         # Project
-        q = self.q_proj(feat1).view(b, c, hw).permute(0, 2, 1) # B, HW, C
-        k = self.k_proj(feat2).view(b, c, hw).permute(0, 2, 1) # B, HW, C
-        v = self.v_proj(feat2).view(b, c, hw).permute(0, 2, 1) # B, HW, C
+        q = self.q_proj(feat1).reshape(b, c, hw).permute(0, 2, 1) # B, HW, C
+        k = self.k_proj(feat2).reshape(b, c, hw).permute(0, 2, 1) # B, HW, C
+        v = self.v_proj(feat2).reshape(b, c, hw).permute(0, 2, 1) # B, HW, C
         
         # Linear Attention Kernel: phi(x) = elu(x) + 1
         q = F.elu(q) + 1.0
@@ -151,7 +151,7 @@ class EfficientLinearAttentionBlock(nn.Module):
         attn_out = attn_out / (denom + 1e-6)
         
         # Add & Norm
-        seq1 = feat1.view(b, c, hw).permute(0, 2, 1)
+        seq1 = feat1.reshape(b, c, hw).permute(0, 2, 1)
         out = self.norm1(seq1 + attn_out)
         
         # FFN

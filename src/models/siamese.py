@@ -34,18 +34,19 @@ class GeoSentinelSiameseUNet(nn.Module):
         self.deeplab = GeoSentinelDeepLabV3Plus(in_channels=12, num_classes=5, encoder_name="resnet50")
         
         if not self.ablation_mode:
-            print(f"Loading frozen Semantic DeepLabV3+ from {deeplab_ckpt_path}")
+            print(f"Loading land-cover anchor (DeepLabV3+) from {deeplab_ckpt_path}")
             checkpoint = torch.load(deeplab_ckpt_path, map_location="cpu", weights_only=True)
             state_dict = checkpoint.get("model_state_dict", checkpoint.get("state_dict", checkpoint))
             
-            # Fix model prefix if necessary
-            new_sd = {}
-            for k, v in state_dict.items():
-                if not k.startswith("model."):
-                    new_sd[f"model.{k}"] = v
-                else:
-                    new_sd[k] = v
-            self.deeplab.load_state_dict(new_sd, strict=False)
+            # Checkpoints from scripts/train.py hold GeoSentinelDeepLabV3Plus keys
+            # ("scag.*", "model.*"); older ones may lack the "model." prefix.
+            own = set(self.deeplab.state_dict())
+            new_sd = {(k if k in own else f"model.{k}"): v for k, v in state_dict.items()}
+            missing, unexpected = self.deeplab.load_state_dict(new_sd, strict=False)
+            if missing or unexpected:
+                raise RuntimeError(
+                    f"Anchor checkpoint mismatch: {len(missing)} missing, {len(unexpected)} unexpected keys"
+                )
         else:
             print(f"ABLATION MODE: Ignoring semantic weights. Using raw ImageNet ResNet50.")
             # Note: SMP automatically downloads ImageNet weights on initialization if specified.
@@ -109,10 +110,19 @@ class GeoSentinelSiameseUNet(nn.Module):
         return self
 
     def extract_deeplab(self, x):
-        """Extract features and logits from DeepLab."""
-        # Now that DeepLab is not frozen, we don't force torch.no_grad()
-        features = self.deeplab.model.encoder(x)
-        logits = self.deeplab(x)
+        """Extract encoder features and logits from DeepLab in a single pass.
+
+        Both come from the spectrally gated input, exactly as the anchor saw
+        its input during land-cover training (GeoSentinelDeepLabV3Plus.forward).
+        """
+        gated = self.deeplab.scag(x)
+        m = self.deeplab.model
+        features = m.encoder(gated)
+        try:
+            decoded = m.decoder(features)
+        except TypeError:
+            decoded = m.decoder(*features)
+        logits = m.segmentation_head(decoded)
         return features, logits
 
     def forward(self, t1, t2):
@@ -154,7 +164,7 @@ class GeoSentinelSiameseUNet(nn.Module):
         B, C, H, W = fused_features[-1].shape
         pooled_logits1 = nn.functional.interpolate(logits1, size=(H, W), mode='bilinear', align_corners=False)
         pooled_logits2 = nn.functional.interpolate(logits2, size=(H, W), mode='bilinear', align_corners=False)
-        logits_diff = torch.abs(pooled_logits1 - pooled_logits2) # [B, 6, H, W]
+        logits_diff = torch.abs(pooled_logits1 - pooled_logits2)  # [B, 5, H, W]
         
         # Fuse bottleneck
         fused_features[-1] = self.bottleneck_fusion(torch.cat([fused_features[-1], logits_diff], dim=1))

@@ -19,6 +19,7 @@ import hashlib
 import os
 import subprocess
 import sys
+import threading
 import urllib.request
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
@@ -118,6 +119,16 @@ def get_anchor():
     return dest
 
 
+def _tee(proc, path, prefix):
+    """Copy a training process's output to its log file; echo epoch and error lines to the notebook log."""
+    keys = ("Epoch", "Train cities", "Validation cities", "Best checkpoint", "Error", "Traceback", "Seed set")
+    with open(path, "w") as f:
+        for line in proc.stdout:
+            f.write(line)
+            if any(k in line for k in keys):
+                print(prefix, line.rstrip(), flush=True)
+
+
 def job_train(runs, epochs, batch_size, workers):
     oscd = find_oscd()
     anchor = get_anchor()
@@ -133,18 +144,21 @@ def job_train(runs, epochs, batch_size, workers):
                "--batch-size", str(batch_size), "--num-workers", str(workers)]
         if kind == "baseline":
             cmd.append("--ablation")
-        log = open(WORK / f"train_{kind}_seed{seed}.log", "w")
         print("Launching:", " ".join(cmd), flush=True)
-        procs.append((kind, seed, subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, cwd=REPO)))
-    for kind, seed, p in procs:
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=REPO, text=True, bufsize=1)
+        t = threading.Thread(target=_tee, args=(p, WORK / f"train_{kind}_seed{seed}.log", f"[{kind}:{seed}]"), daemon=True)
+        t.start()
+        procs.append((kind, seed, p, t))
+    for kind, seed, p, t in procs:
         rc = p.wait()
+        t.join()
         print(f"  {kind} seed {seed}: exit {rc}", flush=True)
         log_tail = (WORK / f"train_{kind}_seed{seed}.log").read_text().splitlines()[-15:]
         print("\n".join(log_tail), flush=True)
         if rc != 0:
             raise SystemExit(f"training failed: {kind} seed {seed}")
 
-    for kind, seed, _ in procs:
+    for kind, seed, *_ in procs:
         ckpt = wdir / f"change_{kind}_seed{seed}.pt"
         cmd = [py, str(REPO / "scripts" / "evaluate_change_fullscene.py"), "--weights", str(ckpt),
                "--deeplab-weights", str(anchor), "--oscd-root", oscd, "--crop-seeds", "0", "1", "2",

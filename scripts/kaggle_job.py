@@ -212,7 +212,10 @@ def job_report(figure_city="lasvegas"):
     import matplotlib.pyplot as plt
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model, _ = load_model(best, get_anchor(), False, device)
+    local = glob.glob("/kaggle/input/**/weights/deeplabv3plus_best.pt", recursive=True)
+    anchor = Path(local[0]) if local else get_anchor()
+    assert hashlib.sha256(Path(anchor).read_bytes()).hexdigest() == ANCHOR_SHA256, "anchor SHA-256 mismatch"
+    model, _ = load_model(best, anchor, False, device)
     scene = next(s for s in load_scenes(Path(find_oscd()), "test") if s[0] == figure_city)
     _, t1, t2, mask = scene
     pred = predict_scene(model, t1, t2, device) > 0.5

@@ -386,44 +386,46 @@ async def get_benchmark_results():
     """
     Returns pre-computed model benchmark results.
 
-    Compares U-Net (ResNet34) vs DeepLabV3+ on OSCD and S2Looking datasets.
+    Change-detection results on the OSCD test cities and the land-cover anchor's validation metrics.
     """
 
+    # Full-scene OSCD test results (tau = 0.5), mean over training seeds; see outputs/oscd/summary.json.
+    # Land-cover values are the anchor's macro-averaged validation metrics (manuscript Table 1).
     results = [
         {
-            "model": "Siamese U-Net Elite (Linear Attention)",
-            "dataset": "OSCD (12-ch)",
-            "iou": 0.378,
-            "dice": 0.548,
-            "f1": 0.5478,
-            "precision": 0.561,
-            "recall": 0.535,
-            "accuracy": 0.892,
-            "params": "31.2M",
+            "model": "Siamese U-Net + land-cover anchor (proposed)",
+            "dataset": "OSCD test cities",
+            "iou": 0.4023,
+            "dice": 0.5736,
+            "f1": 0.5736,
+            "precision": 0.6655,
+            "recall": 0.5058,
+            "accuracy": 0.9612,
+            "params": "64.1M",
             "is_best": True,
         },
         {
-            "model": "Siamese U-Net Baseline (ResNet34)",
-            "dataset": "OSCD (12-ch)",
-            "iou": 0.331,
-            "dice": 0.498,
-            "f1": 0.4981,
-            "precision": 0.512,
-            "recall": 0.485,
-            "accuracy": 0.874,
-            "params": "24.4M",
+            "model": "Siamese U-Net, ImageNet-initialised anchor branch (ablation)",
+            "dataset": "OSCD test cities",
+            "iou": 0.3548,
+            "dice": 0.5233,
+            "f1": 0.5233,
+            "precision": 0.5847,
+            "recall": 0.4816,
+            "accuracy": 0.955,
+            "params": "64.1M",
             "is_best": False,
         },
         {
-            "model": "DeepLabV3+ (ResNet50) — Semantic",
-            "dataset": "OSCD (12-ch)",
-            "iou": 0.442,
-            "dice": 0.613,
-            "f1": 0.613,
-            "precision": 0.598,
-            "recall": 0.629,
+            "model": "DeepLabV3+ (ResNet-50) land-cover anchor",
+            "dataset": "HMR land-cover validation patches",
+            "iou": 0.7624,
+            "dice": 0.8569,
+            "f1": 0.8569,
+            "precision": 0.8492,
+            "recall": 0.8649,
             "accuracy": 0.901,
-            "params": "41.1M",
+            "params": "26.7M",
             "is_best": False,
         },
     ]

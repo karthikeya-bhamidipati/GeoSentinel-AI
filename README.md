@@ -44,10 +44,25 @@ GeoSentinel AI does not rely on simple image differencing (which often fails due
   * 🏙️ Urban IoU: **83.89%** (Highly accurate identification of concrete structures)
   * 🌲 Vegetation IoU: **66.13%**
 
-### 2. Change Detection: Siamese U-Net
-* **Architecture:** Siamese U-Net with a shared **ResNet34** encoder.
-* **Why?** A Siamese network processes the T1 and T2 images through identical twin encoders sharing the same weights. This allows the network to learn the *actual difference in structural feature representations* rather than getting confused by seasonal color shifts.
-* **The Optimization:** To combat severe class imbalance (where 95% of a map doesn't change between dates), we engineered a **CombinedLoss function** (Dice Loss + Focal Loss). This heavily penalized the network for missing changes (false negatives). We then dynamically raised the inference confidence threshold to `0.75` during post-processing to brutally cut down false positives, resulting in surgical, pixel-perfect change detection.
+### 2. Change Detection: Semantically-Anchored Linear Attention Siamese U-Net
+* **Architecture:** Siamese U-Net with a shared **ResNet34** encoder, plus the DeepLabV3+/ResNet50 land-cover network as a *semantic anchor* (fine-tuned at a 10× lower learning rate) whose features are fused at every scale and mixed by cross-temporal **linear attention** (memory O(d²) instead of O(N²)).
+* **Why?** A Siamese network processes the T1 and T2 images through identical twin encoders sharing the same weights, and the anchor tells it what each surface *is*, so seasonal change over stable land cover can be discounted.
+* **Training:** Focal Tversky loss (α 0.3, β 0.7, γ 4/3, class weights [0.15, 0.85]) for the change/no-change imbalance; the decision threshold τ is configurable (0.5 balanced, 0.75 higher precision).
+
+#### OSCD benchmark results
+Full extent of the ten OSCD test cities (256 px sliding window, stride 128, pooled confusion matrix), τ = 0.5, mean ± s.d. over three training seeds. Checkpoints were selected on three held-out training cities (Beirut, Bordeaux, Cupertino); the test cities were used only for evaluation.
+
+| Model | Precision | Recall | F1 | IoU |
+|---|---|---|---|---|
+| Baseline (same architecture, ImageNet-initialised anchor branch) | 58.47 ± 4.09 | 48.16 ± 8.06 | 52.33 ± 3.26 | 35.48 ± 2.97 |
+| **Proposed (land-cover anchor)** | **66.55 ± 4.01** | **50.58 ± 3.54** | **57.36 ± 2.24** | **40.23 ± 2.21** |
+
+* Per-seed results, per-city scores and validation losses: [`outputs/oscd/summary.json`](outputs/oscd/summary.json).
+* Released checkpoint `data/weights/change_unet_best.pt` = the anchored run with the lowest validation loss (seed 2, [`outputs/oscd/best_run.json`](outputs/oscd/best_run.json)); a local re-evaluation reproduces its scores exactly ([`outputs/oscd/local_reproduction_seed2.json`](outputs/oscd/local_reproduction_seed2.json), F1 59.91).
+* Reproduce: run [`notebooks/kaggle_oscd_experiments.ipynb`](notebooks/kaggle_oscd_experiments.ipynb) (wraps `scripts/kaggle_job.py data | train | report`), or evaluate locally:
+  ```bash
+  python scripts/evaluate_change_fullscene.py --weights data/weights/change_unet_best.pt --oscd-root <path to OSCD>
+  ```
 
 ---
 

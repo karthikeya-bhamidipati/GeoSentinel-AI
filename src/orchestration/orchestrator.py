@@ -1073,7 +1073,7 @@ class Orchestrator:
                     new_sd[k[6:]] = v
                 else:
                     new_sd[k] = v
-            unet_model.load_state_dict(new_sd, strict=False)
+            unet_model.load_state_dict(new_sd, strict=True)  # a mismatched checkpoint must fail loudly
 
         unet_model = unet_model.to(self._device)
 

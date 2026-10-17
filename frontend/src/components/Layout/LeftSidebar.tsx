@@ -288,25 +288,25 @@ function ModelMetrics() {
           Our proposed architecture with <strong>Semantically-Anchored Linear Self-Attention</strong>. It fuses DeepLabV3+ latent representations end-to-end to reject pseudo-changes.
         </p>
         <ul style={{ fontSize: "11px", color: "var(--color-text-secondary)", margin: 0, paddingLeft: "16px", display: "flex", flexDirection: "column", gap: "4px" }}>
-          <li><strong style={{ color: "var(--color-text)" }}>F1-Score:</strong> 54.78% (OSCD Benchmark)</li>
-          <li><strong style={{ color: "var(--color-text)" }}>IoU:</strong> 37.80% | <strong style={{ color: "var(--color-text)" }}>Accuracy:</strong> 89.20%</li>
-          <li><strong style={{ color: "var(--color-text)" }}>Precision:</strong> 56.10% | <strong style={{ color: "var(--color-text)" }}>Recall:</strong> 53.50%</li>
-          <li><strong style={{ color: "var(--color-text)" }}>Parameters:</strong> 31.2M | <strong style={{ color: "var(--color-text)" }}>Complexity:</strong> O(N) linear-time</li>
+          <li><strong style={{ color: "var(--color-text)" }}>F1-Score:</strong> 57.36% ± 2.24 (OSCD test cities, 3 seeds)</li>
+          <li><strong style={{ color: "var(--color-text)" }}>IoU:</strong> 40.23% | <strong style={{ color: "var(--color-text)" }}>OA:</strong> 96.12%</li>
+          <li><strong style={{ color: "var(--color-text)" }}>Precision:</strong> 66.55% | <strong style={{ color: "var(--color-text)" }}>Recall:</strong> 50.58%</li>
+          <li><strong style={{ color: "var(--color-text)" }}>Parameters:</strong> 64.1M | <strong style={{ color: "var(--color-text)" }}>Complexity:</strong> O(N) linear attention</li>
         </ul>
       </div>
 
       <div className="panel" style={{ padding: "16px" }}>
         <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text)", marginBottom: "8px" }}>
-          Siamese U-Net Baseline (ResNet34)
+          Ablation Baseline (ImageNet-initialised)
         </div>
         <p style={{ fontSize: "11px", color: "var(--color-text-muted)", marginBottom: "12px", lineHeight: 1.4 }}>
-          Standard convolutional Siamese U-Net backbone initialized with ImageNet weights, running without attention or semantic anchor priors.
+          Ablation baseline: identical architecture (fusion and linear attention included) whose ResNet-50 branch starts from ImageNet weights instead of the land-cover anchor.
         </p>
         <ul style={{ fontSize: "11px", color: "var(--color-text-secondary)", margin: 0, paddingLeft: "16px", display: "flex", flexDirection: "column", gap: "4px" }}>
-          <li><strong style={{ color: "var(--color-text)" }}>F1-Score:</strong> 49.81% (OSCD Benchmark)</li>
-          <li><strong style={{ color: "var(--color-text)" }}>IoU:</strong> 33.10% | <strong style={{ color: "var(--color-text)" }}>Accuracy:</strong> 87.40%</li>
-          <li><strong style={{ color: "var(--color-text)" }}>Precision:</strong> 51.20% | <strong style={{ color: "var(--color-text)" }}>Recall:</strong> 48.50%</li>
-          <li><strong style={{ color: "var(--color-text)" }}>Parameters:</strong> 24.4M | <strong style={{ color: "var(--color-text)" }}>Complexity:</strong> O(N)</li>
+          <li><strong style={{ color: "var(--color-text)" }}>F1-Score:</strong> 52.33% ± 3.26 (OSCD test cities, 3 seeds)</li>
+          <li><strong style={{ color: "var(--color-text)" }}>IoU:</strong> 35.48% | <strong style={{ color: "var(--color-text)" }}>OA:</strong> 95.50%</li>
+          <li><strong style={{ color: "var(--color-text)" }}>Precision:</strong> 58.47% | <strong style={{ color: "var(--color-text)" }}>Recall:</strong> 48.16%</li>
+          <li><strong style={{ color: "var(--color-text)" }}>Parameters:</strong> 64.1M | <strong style={{ color: "var(--color-text)" }}>Complexity:</strong> O(N) linear attention</li>
         </ul>
       </div>
 
@@ -318,7 +318,7 @@ function ModelMetrics() {
           Multispectral 12-channel encoder trained over 100 epochs on Sentinel-2 profiles to generate semantic class labels.
         </p>
         <ul style={{ fontSize: "11px", color: "var(--color-text-secondary)", margin: 0, paddingLeft: "16px", display: "flex", flexDirection: "column", gap: "4px" }}>
-          <li><strong style={{ color: "var(--color-text)" }}>mIoU / Dice:</strong> 44.20% / 61.30%</li>
+          <li><strong style={{ color: "var(--color-text)" }}>Macro IoU / F1:</strong> 76.24% / 85.69%</li>
           <li><strong style={{ color: "var(--color-text)" }}>Accuracy:</strong> 90.10%</li>
           <li><strong style={{ color: "var(--color-text)" }}>Urban Class:</strong> 90.05% Precision | 92.45% Recall</li>
           <li><strong style={{ color: "var(--color-text)" }}>Water Class:</strong> 96.29% Precision | 96.94% Recall</li>
@@ -330,7 +330,7 @@ function ModelMetrics() {
           SOTA Benchmark Comparison (OSCD)
         </div>
         <p style={{ fontSize: "11px", color: "var(--color-text-muted)", marginBottom: "12px", lineHeight: 1.4 }}>
-          Typical F1-scores and computational complexities of recent State-of-the-Art models compared to our work:
+          Published OSCD F1 scores (sources in the paper, Table 3). Protocols differ, so values are indicative:
         </p>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "10.5px", marginTop: "12px", border: "1px solid var(--color-border)" }}>
           <thead>
@@ -342,15 +342,15 @@ function ModelMetrics() {
           </thead>
           <tbody>
             {[
-              { name: "FC-Siam-diff [1]", f1: "45.0%", comp: "O(N)" },
-              { name: "STANet [2]", f1: "49.5%", comp: "O(N²)" },
-              { name: "Proposed (Baseline)", f1: "49.8%", comp: "O(N)", highlight: true },
-              { name: "SNUNet [3]", f1: "51.2%", comp: "O(N)" },
-              { name: "TinyCD [7]", f1: "52.5%", comp: "O(N)" },
-              { name: "BIT [4]", f1: "54.5%", comp: "O(N²)" },
-              { name: "Proposed (Elite)", f1: "54.8%", comp: "O(N)", highlight: true, best: true },
-              { name: "ChangeFormer [5]", f1: "55.2%", comp: "O(N²)" },
-              { name: "ChangeMamba [8]", f1: "56.8%", comp: "O(N)" },
+              { name: "SeCo", f1: "49.82%", comp: "O(N)" },
+              { name: "FC-Siam-conc", f1: "51.36%", comp: "O(N)" },
+              { name: "Proposed (Baseline)", f1: "52.33%", comp: "O(N)", highlight: true },
+              { name: "SatMAE", f1: "52.76%", comp: "O(N²)" },
+              { name: "SpectralGPT+", f1: "54.29%", comp: "O(N²)" },
+              { name: "FC-EF", f1: "56.91%", comp: "O(N)" },
+              { name: "Proposed", f1: "57.36%", comp: "O(N)", highlight: true },
+              { name: "U-Net + ConvLSTM", f1: "57.78%", comp: "O(N)" },
+              { name: "FC-Siam-diff", f1: "57.92%", comp: "O(N)" },
             ].map((m, i) => (
               <tr key={i} style={{ 
                 borderBottom: "1px solid var(--color-border)",

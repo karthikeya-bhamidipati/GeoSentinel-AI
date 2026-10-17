@@ -169,9 +169,73 @@ def job_train(runs, epochs, batch_size, workers):
         subprocess.run(cmd, check=True, cwd=REPO)
 
 
+def job_report(figure_city="lasvegas"):
+    """Aggregate all seeds, pick the anchor run with the lowest *validation* loss and render Fig. 1."""
+    import json
+    import shutil
+    import statistics
+
+    import numpy as np
+    import torch
+
+    sys.path.insert(0, str(REPO))
+    from scripts.evaluate_change_fullscene import load_model, predict_scene
+    from scripts.train_change import load_scenes
+
+    rdir = WORK / "report"
+    rdir.mkdir(parents=True, exist_ok=True)
+    evals = {Path(f).name: json.load(open(f)) for f in glob.glob("/kaggle/input/**/results/eval_*_seed*.json", recursive=True)}
+    ckpts = {Path(f).name: f for f in glob.glob("/kaggle/input/**/weights/change_*_seed*.pt", recursive=True)}
+    print("Found evaluations:", sorted(evals), flush=True)
+    print("Found checkpoints:", sorted(ckpts), flush=True)
+
+    summary, val = {}, {}
+    for name, ev in sorted(evals.items()):
+        kind, seed = name[5:-5].rsplit("_seed", 1)
+        meta = torch.load(ckpts[f"change_{kind}_seed{seed}.pt"], map_location="cpu", weights_only=True)
+        val[(kind, seed)] = {"val_loss": meta["val_loss"], "val_f1": meta["val_f1"], "epoch": meta["epoch"]}
+        summary.setdefault(kind, {})[seed] = {"full_scene": ev["full_scene"], "per_city": ev["per_city"],
+                                              "random_crops": ev["random_crops"], **val[(kind, seed)]}
+    (rdir / "summary.json").write_text(json.dumps(summary, indent=2, default=float))
+    for kind, seeds in summary.items():
+        f1 = [s["full_scene"]["0.5"]["F1"] * 100 for s in seeds.values()]
+        print(f"{kind}: F1@0.5 per seed {[round(x, 2) for x in f1]} mean {statistics.mean(f1):.2f}", flush=True)
+
+    best_seed = min((s for k, s in val if k == "anchor"), key=lambda s: val[("anchor", s)]["val_loss"])
+    best = ckpts[f"change_anchor_seed{best_seed}.pt"]
+    print(f"Best anchor run by validation loss: seed {best_seed} {val[('anchor', best_seed)]}", flush=True)
+    shutil.copy(best, rdir / "change_unet_best.pt")
+    (rdir / "best_run.json").write_text(json.dumps({"seed": best_seed, **val[("anchor", best_seed)]}, default=float))
+
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model, _ = load_model(best, get_anchor(), False, device)
+    scene = next(s for s in load_scenes(Path(find_oscd()), "test") if s[0] == figure_city)
+    _, t1, t2, mask = scene
+    pred = predict_scene(model, t1, t2, device) > 0.5
+
+    def rgb(t):
+        img = t[[2, 1, 0]].permute(1, 2, 0).numpy()
+        lo, hi = np.percentile(img, 2), np.percentile(img, 98)
+        return np.clip((img - lo) / (hi - lo + 1e-9), 0, 1)
+
+    fig, axes = plt.subplots(1, 4, figsize=(16, 4.4))
+    panels = [(rgb(t1), "a"), (rgb(t2), "b"), (mask.numpy() == 1, "c"), (pred, "d")]
+    for ax, (img, label) in zip(axes, panels):
+        ax.imshow(img, cmap=None if img.ndim == 3 else "gray", interpolation="nearest")
+        ax.set_title(label, loc="left", fontweight="bold", fontsize=14)
+        ax.axis("off")
+    plt.tight_layout()
+    plt.savefig(rdir / "figure1.png", dpi=300, bbox_inches="tight")
+    print("Figure 1 written for", figure_city, flush=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("job", choices=["data", "train"])
+    ap.add_argument("job", choices=["data", "train", "report"])
     ap.add_argument("--runs", nargs="*", default=["anchor:1", "baseline:1"])
     ap.add_argument("--epochs", type=int, default=100)
     ap.add_argument("--batch-size", type=int, default=4)
@@ -179,6 +243,8 @@ def main():
     args = ap.parse_args()
     if args.job == "data":
         job_data()
+    elif args.job == "report":
+        job_report()
     else:
         job_train(args.runs, args.epochs, args.batch_size, args.workers)
 
